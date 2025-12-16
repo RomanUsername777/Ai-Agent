@@ -1,0 +1,46 @@
+### Общие файлы ОС
+.DS_Store
+Thumbs.db
+
+### Python: байткод и кэш
+__pycache__/
+*.py[cod]
+*$py.class
+
+### Виртуальные окружения
+.venv/
+venv/
+env/
+ENV/
+
+### Настройки IDE/редакторов
+.idea/
+.vscode/
+*.iml
+
+### Логи и отладочные файлы
+*.log
+logs/
+
+### Временные и кэш-папки
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.cache/
+
+### Конфиги и локальные данные агента
+agent-config.json
+config.json
+
+### Секреты и локальные переменные окружения
+.env
+.env.local
+.env.*
+
+### Данные сессий браузера и результаты работы агента
+yandex_mail_session/
+sessions/
+screenshots/
+results/
+
+

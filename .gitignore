@@ -22,6 +22,10 @@ ENV/
 *.log
 logs/
 
+### Тестовые файлы (если не используются)
+test_*.py
+*_test.py
+
 ### Временные и кэш-папки
 .mypy_cache/
 .pytest_cache/

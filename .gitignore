@@ -42,5 +42,10 @@ yandex_mail_session/
 sessions/
 screenshots/
 results/
+*_storage_state.json
+*_storage.json
+*.bak
+default_storage_state.json
+yandex_mail_storage.json
 
 

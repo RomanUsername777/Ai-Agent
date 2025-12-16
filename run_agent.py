@@ -28,21 +28,15 @@ async def run_agent(task: str, session_dir: str = None, headless: bool = False):
         raise ValueError("Необходим OPENAI_API_KEY или ANTHROPIC_API_KEY в .env файле")
     
     # Определяем файл для сохранения сессии (cookies, localStorage)
+    # Используем единый файл сессии для всех задач - агент универсальный
     if session_dir:
         storage_state_path = Path(session_dir)
         if storage_state_path.is_dir():
             # Если указана папка, создаем файл storage_state.json внутри
             storage_state_path = storage_state_path / 'storage_state.json'
     else:
-        # Автоматически определяем по домену из задачи
-        if 'yandex' in task.lower() or 'mail.yandex' in task.lower():
-            storage_state_path = Path('./yandex_mail_storage_state.json')
-        elif 'hh.ru' in task.lower() or 'headhunter' in task.lower():
-            storage_state_path = Path('./hh_storage_state.json')
-        elif 'yandex' in task.lower() and 'eda' in task.lower():
-            storage_state_path = Path('./yandex_eda_storage_state.json')
-        else:
-            storage_state_path = Path('./browser_storage_state.json')
+        # Универсальный файл сессии для всех задач
+        storage_state_path = Path('./browser_storage_state.json')
     
     print(f"\nСессия будет сохранена в: {storage_state_path}")
     print("(только cookies и localStorage, ~10-50KB)")

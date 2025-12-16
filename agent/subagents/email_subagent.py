@@ -1,8 +1,8 @@
 """Субагент для работы с почтовыми интерфейсами.
 
 Этот субагент предоставляет специализированные инструменты и знания для работы
-с различными почтовыми клиентами (Gmail, Yandex Mail, Outlook и т.д.) без хардкода
-селекторов или конкретных действий.
+с различными почтовыми клиентами без хардкода селекторов или конкретных действий.
+Определяет тип страницы по общим признакам (URL, title, DOM-структура).
 """
 
 import logging
@@ -133,11 +133,10 @@ class EmailSubAgent:
 			if body_text:
 				result['body_preview'] = body_text[:500]  # Первые 500 символов
 			
-			# Если тема не извлечена из title, пытаемся извлечь из DOM
-			if not result['subject'] and result['is_opened']:
-				dom_subject = self._extract_subject_from_dom(browser_state.dom_state.selector_map)
-				if dom_subject:
-					result['subject'] = dom_subject
+			# НЕ используем fallback _extract_subject_from_dom - он возвращает неправильные данные
+			# (находит heading из навигации вместо реальной темы письма)
+			# Если title не обновился в SPA, лучше оставить subject = None,
+			# чтобы агент использовал extract для получения полной информации
 		
 		return result
 	

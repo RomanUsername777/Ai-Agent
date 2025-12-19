@@ -1,5 +1,6 @@
 # @file purpose: Concise evaluation serializer for DOM trees - optimized for LLM query writing
 
+import logging
 
 from agent.dom.utils import cap_text_length
 from agent.dom.views import (
@@ -7,6 +8,8 @@ from agent.dom.views import (
 	NodeType,
 	SimplifiedNode,
 )
+
+logger = logging.getLogger(__name__)
 
 # Critical attributes for query writing and form interaction
 # NOTE: Removed 'id' and 'class' to force more robust structural selectors
@@ -19,6 +22,7 @@ EVAL_KEY_ATTRIBUTES = [
 	'aria-label',
 	'role',
 	'value',
+	'data-qa',  # ВОССТАНОВЛЕНО: data-qa критически важен для идентификации кнопок на hh.ru
 	# 'href',
 	'data-testid',
 	'alt',  # for images
@@ -144,9 +148,34 @@ class DOMEvalSerializer:
 			# Container elements that should be shown even if invisible (might have visible children)
 			container_tags = {'html', 'body', 'div', 'main', 'section', 'article', 'aside', 'header', 'footer', 'nav'}
 
-			# Skip invisible elements UNLESS they're containers or iframes (which might have visible children)
-			if not is_visible and tag not in container_tags and tag not in ['iframe', 'frame']:
+			# CRITICAL: Always serialize interactive elements (in selector_map) even if invisible
+			# This is essential for buttons in modals/overlays that Chrome considers clickable
+			# but may not pass visibility checks (e.g., "Откликнуться" button on hh.ru)
+			
+			# DIAGNOSTIC: Log "Откликнуться" elements to track serialization
+			element_text = node.original_node.get_all_children_text() if hasattr(node.original_node, 'get_all_children_text') else ''
+			has_otkliknitesya = 'Откликнуться' in element_text
+			if has_otkliknitesya:
+				logger.warning(
+					f'🔍 EVAL_SERIALIZER [_serialize_tree]: "Откликнуться" элемент: '
+					f'is_visible={is_visible}, is_interactive={node.is_interactive}, tag={tag}, '
+					f'backend_node_id={node.original_node.backend_node_id}, '
+					f'will_skip={not is_visible and tag not in container_tags and tag not in ["iframe", "frame"] and not node.is_interactive}'
+				)
+			
+			if not is_visible and tag not in container_tags and tag not in ['iframe', 'frame'] and not node.is_interactive:
+				if has_otkliknitesya:
+					logger.warning(
+						f'❌ EVAL_SERIALIZER: "Откликнуться" ПРОПУЩЕН в сериализации (невидим и не интерактивен): '
+						f'is_visible={is_visible}, is_interactive={node.is_interactive}, tag={tag}'
+					)
 				return DOMEvalSerializer._serialize_children(node, include_attributes, depth)
+			
+			if has_otkliknitesya:
+				logger.warning(
+					f'✅ EVAL_SERIALIZER: "Откликнуться" БУДЕТ сериализован: '
+					f'is_visible={is_visible}, is_interactive={node.is_interactive}, tag={tag}, backend_node_id={node.original_node.backend_node_id}'
+				)
 
 			# Special handling for iframes - show them with their content
 			if tag in ['iframe', 'frame']:
@@ -184,6 +213,11 @@ class DOMEvalSerializer:
 			# Add backend node ID notation - [i_X] for interactive elements only
 			if node.is_interactive:
 				line += f'[i_{node.original_node.backend_node_id}] '
+				# DIAGNOSTIC: Log when interactive element gets index notation
+				if has_otkliknitesya:
+					logger.warning(
+						f'✅ EVAL_SERIALIZER: "Откликнуться" получил индекс [i_{node.original_node.backend_node_id}] в сериализации'
+					)
 			# Non-interactive elements don't get an index notation
 			line += f'<{tag}'
 
@@ -199,11 +233,15 @@ class DOMEvalSerializer:
 			# Add inline text if present (keep it on same line for compactness)
 			inline_text = DOMEvalSerializer._get_inline_text(node)
 
+			# ВАЖНО: для кнопок и ссылок всегда показываем текст, даже если это контейнер
+			# Это критично для кнопок типа "Откликнуться" на hh.ru, которые могут быть вложены в span
+			is_button_or_link = tag in ('button', 'a') or (node.original_node.attributes and node.original_node.attributes.get('role') == 'button')
+			
 			# For containers (html, body, div, etc.), always show children even if there's inline text
 			# For other elements, inline text replaces children (more compact)
 			is_container = tag in container_tags
 
-			if inline_text and not is_container:
+			if inline_text and (not is_container or is_button_or_link):
 				line += f'>{inline_text}'
 			else:
 				line += ' />'
@@ -343,19 +381,17 @@ class DOMEvalSerializer:
 
 	@staticmethod
 	def _get_inline_text(node: SimplifiedNode) -> str:
-		"""Get text content to display inline (max 40 chars)."""
-		text_parts = []
-		for child in node.children:
-			if child.original_node.node_type == NodeType.TEXT_NODE:
-				text = child.original_node.node_value.strip() if child.original_node.node_value else ''
-				if text and len(text) > 1:
-					text_parts.append(text)
-
-		if not text_parts:
+		"""Get text content to display inline (max 80 chars).
+		
+		Uses original_node.get_all_children_text() to get text from the ORIGINAL DOM,
+		not from SimplifiedNode.children which may have filtered out nested spans.
+		This is critical for buttons like hh.ru's <button><span><span><span>Откликнуться</span></span></span></button>
+		"""
+		# Use the original DOM node to get ALL nested text, bypassing SimplifiedNode filtering
+		text = node.original_node.get_all_children_text().strip() if node.original_node else ''
+		if not text or len(text) <= 1:
 			return ''
-
-		combined = ' '.join(text_parts)
-		return cap_text_length(combined, 80)
+		return cap_text_length(text, 80)
 
 	@staticmethod
 	def _serialize_iframe(node: SimplifiedNode, include_attributes: list[str], depth: int) -> str:

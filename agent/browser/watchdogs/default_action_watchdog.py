@@ -155,6 +155,9 @@ class DefaultActionWatchdog(BaseWatchdog):
 	@observe_debug(ignore_input=True, ignore_output=True, name='click_element_event')
 	async def on_ClickElementEvent(self, event: ClickElementEvent) -> dict | None:
 		"""Handle click request with CDP."""
+		# Сохраняем исходный target_id ДО try блока, чтобы он был доступен в finally
+		starting_target_id = self.browser_session.agent_focus_target_id if self.browser_session.agent_focus_target_id else None
+		
 		try:
 			# Check if session is alive before attempting any operations
 			if not self.browser_session.agent_focus_target_id:
@@ -165,7 +168,55 @@ class DefaultActionWatchdog(BaseWatchdog):
 			# Use the provided node
 			element_node = event.node
 			index_for_logging = element_node.backend_node_id or 'unknown'
-			starting_target_id = self.browser_session.agent_focus_target_id
+
+			# === ПРЕДОТВРАЩАЕМ ОТКРЫТИЕ В НОВОЙ ВКЛАДКЕ ===
+			# Удаляем target="_blank" у элемента и всех дочерних ссылок перед кликом
+			if element_node.backend_node_id:
+				try:
+					cdp_session = await self.browser_session.get_or_create_cdp_session(focus=True)
+					# Используем resolveNode чтобы получить доступ к элементу по backendNodeId
+					resolved = await cdp_session.cdp_client.send.DOM.resolveNode(
+						params={'backendNodeId': element_node.backend_node_id},
+						session_id=cdp_session.session_id
+					)
+					if resolved and 'object' in resolved:
+						object_id = resolved['object']['objectId']
+						# Удаляем target у самого элемента И у всех дочерних ссылок
+						result = await cdp_session.cdp_client.send.Runtime.callFunctionOn(
+							params={
+								'objectId': object_id,
+								'functionDeclaration': '''function() {
+									let removed = 0;
+									// Удаляем у самого элемента
+									if (this.hasAttribute && this.hasAttribute("target")) {
+										this.removeAttribute("target");
+										removed++;
+									}
+									// Удаляем у всех дочерних ссылок
+									const links = this.querySelectorAll ? this.querySelectorAll("a[target]") : [];
+									links.forEach(link => {
+										link.removeAttribute("target");
+										removed++;
+									});
+									// Проверяем родителя - если это ссылка
+									if (this.closest) {
+										const parentLink = this.closest("a[target]");
+										if (parentLink) {
+											parentLink.removeAttribute("target");
+											removed++;
+										}
+									}
+									return removed;
+								}''',
+								'returnByValue': True,
+							},
+							session_id=cdp_session.session_id,
+						)
+						removed_count = result.get('result', {}).get('value', 0) if result else 0
+						if removed_count > 0:
+							self.logger.info(f'🔗 Удалено {removed_count} target="_blank" атрибутов для открытия в той же вкладке')
+				except Exception as e:
+					self.logger.debug(f'🔗 Не удалось удалить target: {e}')
 
 			# Check if element is a file input (should not be clicked)
 			if self.browser_session.is_file_input(element_node):
@@ -193,7 +244,7 @@ class DefaultActionWatchdog(BaseWatchdog):
 					self.logger.warning('⚠️ PDF generation failed, falling back to regular click')
 
 			# Perform the actual click using internal implementation
-			click_metadata = await self._click_element_node_impl(element_node)
+			click_metadata = await self._click_element_node_impl(element_node, starting_target_id=starting_target_id)
 			download_path = None  # moved to downloads_watchdog.py
 
 			# Check for validation errors - return them without raising to avoid ERROR logs
@@ -476,12 +527,13 @@ class DefaultActionWatchdog(BaseWatchdog):
 			self.logger.debug(f'Occlusion check failed: {e}, assuming not occluded')
 			return False
 
-	async def _click_element_node_impl(self, element_node) -> dict | None:
+	async def _click_element_node_impl(self, element_node, starting_target_id=None) -> dict | None:
 		"""
 		Click an element using pure CDP with multiple fallback methods for getting element geometry.
 
 		Args:
 			element_node: The DOM element to click
+			starting_target_id: Original target_id before click (for refocus after click)
 		"""
 
 		try:
@@ -560,14 +612,33 @@ class DefaultActionWatchdog(BaseWatchdog):
 					)
 					object_id = result['object']['objectId']
 
+					# Улучшенная симуляция клика для React/Vue компонентов
 					await cdp_session.cdp_client.send.Runtime.callFunctionOn(
 						params={
-							'functionDeclaration': 'function() { this.click(); }',
+							'functionDeclaration': '''function() {
+								const rect = this.getBoundingClientRect();
+								const x = rect.left + rect.width / 2;
+								const y = rect.top + rect.height / 2;
+								const eventInit = {bubbles: true, cancelable: true, view: window, clientX: x, clientY: y};
+								
+								// Focus element if focusable
+								if (this.focus) this.focus();
+								
+								// Simulate full mouse event sequence for React/Vue
+								this.dispatchEvent(new MouseEvent('mouseenter', eventInit));
+								this.dispatchEvent(new MouseEvent('mouseover', eventInit));
+								this.dispatchEvent(new MouseEvent('mousedown', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('mouseup', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('click', {...eventInit, button: 0}));
+								
+								// Also try native click as backup
+								if (this.click) this.click();
+							}''',
 							'objectId': object_id,
 						},
 						session_id=session_id,
 					)
-					await asyncio.sleep(0.05)
+					await asyncio.sleep(0.1)
 					# Navigation is handled by BrowserSession via events
 					return None
 				except Exception as js_e:
@@ -637,14 +708,28 @@ class DefaultActionWatchdog(BaseWatchdog):
 					)
 					object_id = result['object']['objectId']
 
+					# Улучшенная симуляция клика для React/Vue компонентов
 					await cdp_session.cdp_client.send.Runtime.callFunctionOn(
 						params={
-							'functionDeclaration': 'function() { this.click(); }',
+							'functionDeclaration': '''function() {
+								const rect = this.getBoundingClientRect();
+								const x = rect.left + rect.width / 2;
+								const y = rect.top + rect.height / 2;
+								const eventInit = {bubbles: true, cancelable: true, view: window, clientX: x, clientY: y};
+								
+								if (this.focus) this.focus();
+								this.dispatchEvent(new MouseEvent('mouseenter', eventInit));
+								this.dispatchEvent(new MouseEvent('mouseover', eventInit));
+								this.dispatchEvent(new MouseEvent('mousedown', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('mouseup', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('click', {...eventInit, button: 0}));
+								if (this.click) this.click();
+							}''',
 							'objectId': object_id,
 						},
 						session_id=session_id,
 					)
-					await asyncio.sleep(0.05)
+					await asyncio.sleep(0.1)
 					return None
 				except Exception as js_e:
 					self.logger.error(f'JavaScript click fallback failed: {js_e}')
@@ -721,9 +806,23 @@ class DefaultActionWatchdog(BaseWatchdog):
 					)
 					object_id = result['object']['objectId']
 
+					# Улучшенная симуляция клика для React/Vue компонентов
 					await cdp_session.cdp_client.send.Runtime.callFunctionOn(
 						params={
-							'functionDeclaration': 'function() { this.click(); }',
+							'functionDeclaration': '''function() {
+								const rect = this.getBoundingClientRect();
+								const x = rect.left + rect.width / 2;
+								const y = rect.top + rect.height / 2;
+								const eventInit = {bubbles: true, cancelable: true, view: window, clientX: x, clientY: y};
+								
+								if (this.focus) this.focus();
+								this.dispatchEvent(new MouseEvent('mouseenter', eventInit));
+								this.dispatchEvent(new MouseEvent('mouseover', eventInit));
+								this.dispatchEvent(new MouseEvent('mousedown', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('mouseup', {...eventInit, button: 0}));
+								this.dispatchEvent(new MouseEvent('click', {...eventInit, button: 0}));
+								if (this.click) this.click();
+							}''',
 							'objectId': object_id,
 						},
 						session_id=session_id,
@@ -739,16 +838,22 @@ class DefaultActionWatchdog(BaseWatchdog):
 			finally:
 				# Always re-focus back to original top-level page session context in case click opened a new tab/popup/window/dialog/etc.
 				# Use timeout to prevent hanging if dialog is blocking
-				try:
-					cdp_session = await asyncio.wait_for(self.browser_session.get_or_create_cdp_session(focus=True), timeout=3.0)
-					await asyncio.wait_for(
-						cdp_session.cdp_client.send.Runtime.runIfWaitingForDebugger(session_id=cdp_session.session_id),
-						timeout=2.0,
-					)
-				except TimeoutError:
-					self.logger.debug('⏱️ Refocus after click timed out (page may be blocked by dialog). Continuing...')
-				except Exception as e:
-					self.logger.debug(f'⚠️ Refocus error (non-critical): {type(e).__name__}: {e}')
+				# CRITICAL: Use starting_target_id to return to the ORIGINAL tab, not the current agent_focus_target_id
+				# which may have been switched to a new tab by the click
+				if starting_target_id:
+					try:
+						cdp_session = await asyncio.wait_for(
+							self.browser_session.get_or_create_cdp_session(target_id=starting_target_id, focus=True),
+							timeout=3.0
+						)
+						await asyncio.wait_for(
+							cdp_session.cdp_client.send.Runtime.runIfWaitingForDebugger(session_id=cdp_session.session_id),
+							timeout=2.0,
+						)
+					except TimeoutError:
+						self.logger.debug('⏱️ Refocus after click timed out (page may be blocked by dialog). Continuing...')
+					except Exception as e:
+						self.logger.debug(f'⚠️ Refocus error (non-critical): {type(e).__name__}: {e}')
 
 		except URLNotAllowedError as e:
 			raise e

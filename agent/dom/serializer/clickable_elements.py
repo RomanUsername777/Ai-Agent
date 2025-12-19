@@ -18,6 +18,12 @@ class ClickableElementDetector:
 		if node.tag_name in {'html', 'body'}:
 			return False
 
+		# CRITICAL: Check isClickable from DOMSnapshot FIRST (like Go reference)
+		# This catches elements that Chrome considers clickable even without explicit roles/attributes
+		# This is the key to detecting buttons like "Откликнуться" and "Найти" on hh.ru
+		if node.snapshot_node and node.snapshot_node.is_clickable:
+			return True
+
 		# IFRAME elements should be interactive if they're large enough to potentially need scrolling
 		# Small iframes (< 100px width or height) are unlikely to have scrollable content
 		if node.tag_name and node.tag_name.upper() == 'IFRAME' or node.tag_name.upper() == 'FRAME':

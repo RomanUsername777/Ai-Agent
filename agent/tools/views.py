@@ -35,6 +35,7 @@ class InputTextAction(BaseModel):
 	index: int = Field(ge=0, description='from browser_state')
 	text: str
 	clear: bool = Field(default=True, description='1=clear, 0=append')
+	press_enter: bool = Field(default=False, description='If True, press Enter after typing (useful for search fields)')
 
 
 class DoneAction(BaseModel):
@@ -76,6 +77,17 @@ class SelectDropdownOptionAction(BaseModel):
 
 class RequestUserInputAction(BaseModel):
 	prompt: str = Field(description='Сообщение для пользователя с запросом на действие (например, решение капчи)')
+
+
+class ClickTextAction(BaseModel):
+	text: str = Field(description='Visible text to click on (e.g., "Откликнуться", "Submit", "Login")')
+	exact: bool = Field(default=False, description='If True, match text exactly; if False, match substring')
+
+
+class ClickRoleAction(BaseModel):
+	role: str = Field(default='button', description='ARIA role: button, link, menuitem, checkbox, radio')
+	name: str = Field(default='', description='Accessible name/text of the element')
+	exact: bool = Field(default=False, description='If True, match name exactly')
 
 
 class WaitForUserInputAction(BaseModel):

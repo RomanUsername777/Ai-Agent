@@ -2107,22 +2107,61 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 						# Форма входа определяется наличием поля пароля И (поля логина ИЛИ кнопки отправки)
 						is_login_form = has_password_field and (has_login_field or has_submit_button)
 						
-						# Проверяем текст элементов на наличие капчи
+						# Проверяем текст элементов на наличие капчи и деструктивных действий
 						is_captcha_element = False
+						is_destructive_action = False
+						destructive_action_type = None
 						if action_name == 'click' and 'index' in action_data.get('click', {}):
 							click_params = action_data.get('click', {})
 							index = click_params.get('index')
 							if index is not None and browser_state.dom_state:
 								selector_map = browser_state.dom_state.selector_map
-								for element in selector_map.values():
-									if hasattr(element, 'index') and element.index == index:
-										element_text = getattr(element, 'text', '') or ''
-										text_lower = element_text.lower()
-										is_captcha_element = (
-											'робот' in text_lower or 'robot' in text_lower or
-											'не робот' in text_lower or 'not a robot' in text_lower
-										)
-										break
+								# Ищем элемент по index (который является backend_node_id в selector_map)
+								clicked_element = selector_map.get(index) if index in selector_map else None
+								if clicked_element:
+									# Получаем текст элемента разными способами
+									element_text = ''
+									if hasattr(clicked_element, 'ax_node') and clicked_element.ax_node and clicked_element.ax_node.name:
+										element_text = clicked_element.ax_node.name
+									elif hasattr(clicked_element, 'get_all_children_text'):
+										element_text = clicked_element.get_all_children_text() or ''
+									elif hasattr(clicked_element, 'get_meaningful_text_for_llm'):
+										element_text = clicked_element.get_meaningful_text_for_llm() or ''
+									elif hasattr(clicked_element, 'text'):
+										element_text = getattr(clicked_element, 'text', '') or ''
+									
+									text_lower = element_text.lower()
+									
+									# Проверка на капчу
+									is_captcha_element = (
+										'робот' in text_lower or 'robot' in text_lower or
+										'не робот' in text_lower or 'not a robot' in text_lower
+									)
+									
+									# Проверка на деструктивные действия (оплата, удаление)
+									# ВАЖНО: проверяем только если элемент найден и текст получен
+									if not is_captcha_element and element_text:
+										# Ключевые слова для оплаты/подтверждения заказа (только финальные действия оплаты)
+										payment_keywords = [
+											'оплат', 'pay now', 'checkout', 'place order', 'оформить заказ',
+											'подтвердить заказ', 'оплатить заказ', 'купить сейчас', 'buy now',
+											'подтвердить и оплатить', 'confirm and pay', 'proceed to payment'
+										]
+										# Ключевые слова для удаления
+										delete_keywords = [
+											'удалить письмо', 'delete email', 'удалить навсегда',
+											'delete permanently', 'удалить безвозвратно'
+										]
+										
+										is_payment_action = any(kw in text_lower for kw in payment_keywords)
+										is_delete_action = any(kw in text_lower for kw in delete_keywords)
+										
+										if is_payment_action:
+											is_destructive_action = True
+											destructive_action_type = 'payment'
+										elif is_delete_action:
+											is_destructive_action = True
+											destructive_action_type = 'delete'
 						
 						# Если обнаружена форма входа, блокируем действия и заменяем на wait_for_user_input
 						if is_login_form:
@@ -2200,6 +2239,37 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 							action = captcha_action
 							action_name = 'request_user_input'
 							action_data = {'request_user_input': {'prompt': 'Пожалуйста, решите капчу в браузере и введите "готово" (или "done") когда закончите'}}
+						
+						# Security layer: проверка на деструктивные действия (оплата, удаление)
+						elif is_destructive_action:
+							action_description = 'оплату/подтверждение заказа' if destructive_action_type == 'payment' else 'удаление'
+							self.logger.warning(
+								f'🛡️ Security layer: блокирую деструктивное действие {action_name} ({action_description}) - запрашиваю подтверждение пользователя'
+							)
+							# Заменяем действие на request_user_input с запросом подтверждения
+							from agent.tools.views import RequestUserInputAction
+							from agent.tools.registry.views import ActionModel
+							from pydantic import create_model, Field
+							
+							RequestUserInputActionModel = create_model(
+								'RequestUserInputActionModel',
+								__base__=ActionModel,
+								request_user_input=(RequestUserInputAction, Field(...))
+							)
+							
+							if destructive_action_type == 'payment':
+								prompt_text = 'Обнаружена кнопка оплаты/подтверждения заказа. Вы хотите оплатить/подтвердить заказ? Ответьте только "да"/"yes" для подтверждения или "нет"/"no" для отмены.'
+							else:  # delete
+								prompt_text = 'Обнаружена кнопка удаления. Вы хотите удалить этот элемент? Ответьте только "да"/"yes" для подтверждения или "нет"/"no" для отмены.'
+							
+							destructive_action = RequestUserInputActionModel(
+								request_user_input=RequestUserInputAction(
+									prompt=prompt_text
+								)
+							)
+							action = destructive_action
+							action_name = 'request_user_input'
+							action_data = {'request_user_input': {'prompt': prompt_text}}
 						
 						# Если достигнут лимит неудачных попыток клика в модальном окне, блокируем действие и запрашиваем помощь
 						elif self.state.modal_click_failures >= 3 and action_name == 'click':

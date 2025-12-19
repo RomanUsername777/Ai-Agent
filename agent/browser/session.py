@@ -1524,6 +1524,10 @@ class BrowserSession(BaseModel):
 			await self.session_manager.start_monitoring()
 			self.logger.debug('Event-driven session manager started')
 
+			# КРИТИЧНО: Перехватываем window.open() чтобы ссылки открывались в той же вкладке
+			# Это предотвращает открытие новых вкладок сайтами через JavaScript
+			await self._inject_window_open_override()
+
 			# Enable auto-attach so Chrome automatically notifies us when NEW targets attach/detach
 			# This is the foundation of event-driven session management
 			await self._cdp_client_root.send.Target.setAutoAttach(
@@ -2895,6 +2899,33 @@ class BrowserSession(BaseModel):
 	async def _cdp_clear_geolocation(self) -> None:
 		"""Clear geolocation override using CDP."""
 		await self.cdp_client.send.Emulation.clearGeolocationOverride()
+
+	async def _inject_window_open_override(self) -> None:
+		"""Inject script to override window.open() to prevent new tabs.
+		
+		This ensures all links open in the current tab instead of new tabs,
+		which is critical for maintaining agent context.
+		"""
+		script = '''
+			// Override window.open to navigate in the same tab instead of opening new tabs
+			(function() {
+				const originalOpen = window.open;
+				window.open = function(url, target, features) {
+					// If URL is provided, navigate to it in the current tab
+					if (url && url !== '' && url !== 'about:blank') {
+						window.location.href = url;
+						return window;
+					}
+					// For about:blank or no URL, allow original behavior
+					return originalOpen.call(this, url, target, features);
+				};
+			})();
+		'''
+		try:
+			await self._cdp_add_init_script(script)
+			self.logger.debug('🔗 window.open() override injected to prevent new tabs')
+		except Exception as e:
+			self.logger.debug(f'Failed to inject window.open override: {e}')
 
 	async def _cdp_add_init_script(self, script: str) -> str:
 		"""Add script to evaluate on new document using CDP Page.addScriptToEvaluateOnNewDocument."""

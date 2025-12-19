@@ -34,6 +34,8 @@ from agent.tools.registry.service import Registry
 from agent.tools.utils import get_click_description
 from agent.tools.views import (
 	ClickElementAction,
+	ClickRoleAction,
+	ClickTextAction,
 	DoneAction,
 	ExtractAction,
 	GetDropdownOptionsAction,
@@ -121,17 +123,15 @@ class Tools(Generic[Context]):
 		)
 		async def navigate(params: NavigateAction, browser_session: BrowserSession):
 			try:
-				# Отправляем событие навигации
-				event = browser_session.event_bus.dispatch(NavigateToUrlEvent(url=params.url, new_tab=params.new_tab))
+				# ВАЖНО: Принудительно отключаем открытие новых вкладок
+				# LLM иногда решает открыть new_tab=True, что ломает контекст работы
+				# Все навигации должны происходить в текущей вкладке
+				event = browser_session.event_bus.dispatch(NavigateToUrlEvent(url=params.url, new_tab=False))
 				await event
 				await event.event_result(raise_if_any=True, raise_if_none=False)
 
-				if params.new_tab:
-					memory = f'Открыта новая вкладка с адресом {params.url}'
-					msg = f'🔗  Открыта новая вкладка с адресом {params.url}'
-				else:
-					memory = f'Переход на {params.url}'
-					msg = f'🔗 {memory}'
+				memory = f'Переход на {params.url}'
+				msg = f'🔗 {memory}'
 
 				logger.info(msg)
 				return ActionResult(extracted_content=msg, long_term_memory=memory)
@@ -379,6 +379,18 @@ class Tools(Generic[Context]):
 					log_msg = f"Введено '{params.text}'"
 
 				logger.debug(log_msg)
+
+				# Если указан press_enter=True, нажимаем Enter после ввода текста
+				# Это особенно полезно для полей поиска, где кнопка "Найти" может быть неточно определена
+				if params.press_enter:
+					try:
+						enter_event = browser_session.event_bus.dispatch(SendKeysEvent(keys='Enter'))
+						await enter_event
+						await enter_event.event_result(raise_if_any=True, raise_if_none=False)
+						msg += ' и нажат Enter'
+						logger.info('⏎ Enter нажат после ввода текста')
+					except Exception as e:
+						logger.warning(f'Не удалось нажать Enter: {e}')
 
 				# Включаем координаты ввода в метаданные, если доступны
 				return ActionResult(
@@ -675,6 +687,142 @@ You will be given a query and the markdown of a webpage that has been filtered t
 				)
 
 		@self.registry.action(
+			'Клик по видимому тексту на странице. Используйте когда элемент не имеет индекса в DOM, но текст виден на скриншоте (например, кнопка "Откликнуться", "Submit").',
+			param_model=ClickTextAction,
+		)
+		async def click_text(params: ClickTextAction, browser_session: BrowserSession):
+			"""Click element by visible text using JavaScript with full mouse event simulation"""
+			try:
+				# Use JavaScript to find and click element by text content
+				# Includes full mouse event simulation for React/Vue compatibility
+				script = """
+				(text, exact) => {
+					function simulateClick(el) {
+						el.scrollIntoView({behavior: 'instant', block: 'center'});
+						const rect = el.getBoundingClientRect();
+						const x = rect.left + rect.width / 2;
+						const y = rect.top + rect.height / 2;
+						const opts = {bubbles: true, cancelable: true, view: window, clientX: x, clientY: y};
+						el.dispatchEvent(new MouseEvent('mouseenter', opts));
+						el.dispatchEvent(new MouseEvent('mouseover', opts));
+						el.dispatchEvent(new MouseEvent('mousedown', {...opts, button: 0}));
+						el.dispatchEvent(new MouseEvent('mouseup', {...opts, button: 0}));
+						el.dispatchEvent(new MouseEvent('click', {...opts, button: 0}));
+						if (el.click) el.click();
+					}
+					
+					const elements = document.querySelectorAll('a, button, [role="button"], input[type="submit"], input[type="button"]');
+					for (const el of elements) {
+						const elText = el.textContent || el.innerText || el.value || '';
+						if (exact ? elText.trim() === text : elText.toLowerCase().includes(text.toLowerCase())) {
+							simulateClick(el);
+							return 'clicked: ' + elText.trim().substring(0, 50);
+						}
+					}
+					// Fallback: try any element with matching text
+					const allElements = document.querySelectorAll('*');
+					for (const el of allElements) {
+						const elText = el.textContent || el.innerText || '';
+						if (exact ? elText.trim() === text : elText.toLowerCase().includes(text.toLowerCase())) {
+							simulateClick(el);
+							return 'clicked (fallback): ' + elText.trim().substring(0, 50);
+						}
+					}
+					return 'not_found';
+				}
+				"""
+				cdp_session = await browser_session.get_or_create_cdp_session()
+				result = await cdp_session.cdp_client.send.Runtime.evaluate(
+					params={
+						'expression': f'({script})("{params.text}", {str(params.exact).lower()})',
+						'returnByValue': True,
+					}
+				)
+				
+				value = result.get('result', {}).get('value', 'error')
+				if value == 'not_found':
+					msg = f"Текст '{params.text}' не найден на странице"
+					logger.warning(msg)
+					return ActionResult(extracted_content=msg)
+				
+				msg = f"🖱️ click_text: {value}"
+				logger.info(msg)
+				return ActionResult(extracted_content=msg)
+			except Exception as e:
+				msg = f"Ошибка click_text: {e}"
+				logger.error(msg)
+				return ActionResult(error=msg)
+
+		@self.registry.action(
+			'Клик по элементу с ARIA ролью (button, link, menuitem). Используйте когда элемент не имеет индекса, но известна его роль и имя.',
+			param_model=ClickRoleAction,
+		)
+		async def click_role(params: ClickRoleAction, browser_session: BrowserSession):
+			"""Click element by ARIA role using JavaScript with full mouse event simulation"""
+			try:
+				role = params.role.lower()
+				name = params.name
+				
+				script = """
+				(role, name, exact) => {
+					function simulateClick(el) {
+						el.scrollIntoView({behavior: 'instant', block: 'center'});
+						const rect = el.getBoundingClientRect();
+						const x = rect.left + rect.width / 2;
+						const y = rect.top + rect.height / 2;
+						const opts = {bubbles: true, cancelable: true, view: window, clientX: x, clientY: y};
+						el.dispatchEvent(new MouseEvent('mouseenter', opts));
+						el.dispatchEvent(new MouseEvent('mouseover', opts));
+						el.dispatchEvent(new MouseEvent('mousedown', {...opts, button: 0}));
+						el.dispatchEvent(new MouseEvent('mouseup', {...opts, button: 0}));
+						el.dispatchEvent(new MouseEvent('click', {...opts, button: 0}));
+						if (el.click) el.click();
+					}
+					
+					const roleSelectors = {
+						'button': 'button, [role="button"], input[type="button"], input[type="submit"]',
+						'link': 'a, [role="link"]',
+						'menuitem': '[role="menuitem"]',
+						'checkbox': 'input[type="checkbox"], [role="checkbox"]',
+						'radio': 'input[type="radio"], [role="radio"]'
+					};
+					const selector = roleSelectors[role] || '[role="' + role + '"]';
+					const elements = document.querySelectorAll(selector);
+					
+					for (const el of elements) {
+						const elText = el.textContent || el.innerText || el.getAttribute('aria-label') || el.value || '';
+						const nameMatch = !name || (exact ? elText.trim() === name : elText.toLowerCase().includes(name.toLowerCase()));
+						if (nameMatch) {
+							simulateClick(el);
+							return 'clicked: ' + elText.trim().substring(0, 50);
+						}
+					}
+					return 'not_found';
+				}
+				"""
+				cdp_session = await browser_session.get_or_create_cdp_session()
+				result = await cdp_session.cdp_client.send.Runtime.evaluate(
+					params={
+						'expression': f'({script})("{role}", "{name}", {str(params.exact).lower()})',
+						'returnByValue': True,
+					}
+				)
+				
+				value = result.get('result', {}).get('value', 'error')
+				if value == 'not_found':
+					msg = f"Элемент с ролью '{role}' и именем '{name}' не найден"
+					logger.warning(msg)
+					return ActionResult(extracted_content=msg)
+				
+				msg = f"🖱️ click_role: {value}"
+				logger.info(msg)
+				return ActionResult(extracted_content=msg)
+			except Exception as e:
+				msg = f"Ошибка click_role: {e}"
+				logger.error(msg)
+				return ActionResult(error=msg)
+
+		@self.registry.action(
 			'Получить скриншот текущего viewport. Используйте когда: нужна визуальная проверка, неясная компоновка, неопределенные позиции элементов, отладка проблем UI, или проверка состояния страницы. Скриншот включен в следующее состояние_браузера. Параметры не нужны.',
 			param_model=NoParamsAction,
 		)
@@ -771,15 +919,27 @@ You will be given a query and the markdown of a webpage that has been filtered t
 		)
 		async def request_user_input(params: RequestUserInputAction, browser_session: BrowserSession):
 			"""Запросить ввод от пользователя (например, для решения капчи)"""
+			# Проверяем, является ли это запросом да/нет (security layer)
+			# Если промпт содержит "да/yes" или "нет/no", это запрос подтверждения, не нужно просить "готово"
+			prompt_lower = params.prompt.lower()
+			is_yes_no_prompt = ('да' in prompt_lower or 'yes' in prompt_lower) and ('нет' in prompt_lower or 'no' in prompt_lower)
+			
 			if self.user_input_callback is None:
 				# Если callback не установлен, используем стандартный input()
 				import sys
 				print(f'\n🔒 {params.prompt}', file=sys.stderr)
-				print('Введите "готово" (или "done") когда закончите:', file=sys.stderr, end=' ')
+				if not is_yes_no_prompt:
+					# Для обычных запросов (капча и т.д.) просим "готово"
+					print('Введите "готово" (или "done") когда закончите:', file=sys.stderr, end=' ')
 				answer = input()
 			else:
 				# Используем callback функцию
-				answer = self.user_input_callback(params.prompt)
+				# Для security layer не добавляем "готово" в промпт
+				if is_yes_no_prompt:
+					answer = self.user_input_callback(params.prompt)
+				else:
+					# Для обычных запросов добавляем "готово"
+					answer = self.user_input_callback(f'{params.prompt}\nВведите "готово" (или "done") когда закончите:')
 			
 			# Если ответ "done", "готово" или "yes" (без учета регистра), это подтверждение
 			answer_lower = answer.strip().lower()

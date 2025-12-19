@@ -1091,7 +1091,6 @@ class DOMTreeSerializer:
 		# - date: YYYY-MM-DD (e.g., "2024-03-15")
 		# - time: HH:MM or HH:MM:SS (24-hour, e.g., "14:30")
 		# - datetime-local: YYYY-MM-DDTHH:MM (e.g., "2024-03-15T14:30")
-		# Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/date
 		if node.tag_name and node.tag_name.lower() == 'input' and node.attributes:
 			input_type = node.attributes.get('type', '').lower()
 

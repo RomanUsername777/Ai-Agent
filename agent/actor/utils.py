@@ -14,8 +14,6 @@ class Utils:
 		Returns:
 			Tuple of (code, windowsVirtualKeyCode)
 
-		Reference: Windows Virtual Key Codes
-		https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 		"""
 		# Complete mapping of key names to (code, virtualKeyCode)
 		# Based on standard Windows Virtual Key Codes
@@ -169,8 +167,5 @@ def get_key_info(key: str) -> tuple[str, int | None]:
 
 	Returns:
 		Tuple of (code, windowsVirtualKeyCode)
-
-	Reference: Windows Virtual Key Codes
-	https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 	"""
 	return Utils.get_key_info(key)

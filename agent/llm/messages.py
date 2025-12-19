@@ -1,5 +1,5 @@
 """
-This implementation is based on the OpenAI types, while removing all the parts that are not needed for Browser Use.
+Типы сообщений для работы с LLM провайдерами.
 """
 
 # region - Content parts
@@ -57,8 +57,6 @@ class ImageURL(BaseModel):
 	detail: Literal['auto', 'low', 'high'] = 'auto'
 	"""Specifies the detail level of the image.
 
-    Learn more in the
-    [Vision guide](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding).
     """
 	# needed for Anthropic
 	media_type: SupportedImageMediaType = 'image/png'

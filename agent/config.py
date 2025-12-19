@@ -51,8 +51,7 @@ class OldConfig:
 	_dirs_created = False
 
 	@property
-	def BROWSER_USE_LOGGING_LEVEL(self) -> str:
-		# Совместимость с полем, которое читает логгер; фактически используем AGENT_LOGGING_LEVEL
+	def AGENT_LOGGING_LEVEL(self) -> str:
 		return os.getenv('AGENT_LOGGING_LEVEL', 'info').lower()
 
 	@property
@@ -60,22 +59,22 @@ class OldConfig:
 		return os.getenv('ANONYMIZED_TELEMETRY', 'true').lower()[:1] in 'ty1'
 
 	@property
-	def BROWSER_USE_CLOUD_SYNC(self) -> bool:
+	def AGENT_CLOUD_SYNC(self) -> bool:
 		# Облачная синхронизация не используется
 		return False
 
 	@property
-	def BROWSER_USE_CLOUD_API_URL(self) -> str:
+	def CLOUD_API_URL(self) -> str:
 		url = os.getenv('CLOUD_API_URL', 'https://api.example.com')
 		assert '://' in url, 'CLOUD_API_URL must be a valid URL'
 		return url
 
 	@property
-	def BROWSER_USE_CLOUD_UI_URL(self) -> str:
-		url = os.getenv('BROWSER_USE_CLOUD_UI_URL', '')
+	def CLOUD_UI_URL(self) -> str:
+		url = os.getenv('CLOUD_UI_URL', '')
 		# Allow empty string as default, only validate if set
 		if url and '://' not in url:
-			raise AssertionError('BROWSER_USE_CLOUD_UI_URL must be a valid URL if set')
+			raise AssertionError('CLOUD_UI_URL must be a valid URL if set')
 		return url
 
 	# Path configuration
@@ -88,28 +87,28 @@ class OldConfig:
 		return Path(os.getenv('XDG_CONFIG_HOME', '~/.config')).expanduser().resolve()
 
 	@property
-	def BROWSER_USE_CONFIG_DIR(self) -> Path:
+	def AGENT_CONFIG_DIR(self) -> Path:
 		path = Path(os.getenv('AGENT_CONFIG_DIR', str(self.XDG_CONFIG_HOME / 'agent'))).expanduser().resolve()
 		self._ensure_dirs()
 		return path
 
 	@property
-	def BROWSER_USE_CONFIG_FILE(self) -> Path:
-		return self.BROWSER_USE_CONFIG_DIR / 'config.json'
+	def AGENT_CONFIG_FILE(self) -> Path:
+		return self.AGENT_CONFIG_DIR / 'config.json'
 
 	@property
-	def BROWSER_USE_PROFILES_DIR(self) -> Path:
-		path = self.BROWSER_USE_CONFIG_DIR / 'profiles'
+	def AGENT_PROFILES_DIR(self) -> Path:
+		path = self.AGENT_CONFIG_DIR / 'profiles'
 		self._ensure_dirs()
 		return path
 
 	@property
-	def BROWSER_USE_DEFAULT_USER_DATA_DIR(self) -> Path:
-		return self.BROWSER_USE_PROFILES_DIR / 'default'
+	def AGENT_DEFAULT_USER_DATA_DIR(self) -> Path:
+		return self.AGENT_PROFILES_DIR / 'default'
 
 	@property
-	def BROWSER_USE_EXTENSIONS_DIR(self) -> Path:
-		path = self.BROWSER_USE_CONFIG_DIR / 'extensions'
+	def AGENT_EXTENSIONS_DIR(self) -> Path:
+		path = self.AGENT_CONFIG_DIR / 'extensions'
 		self._ensure_dirs()
 		return path
 
@@ -173,7 +172,7 @@ class OldConfig:
 		return os.getenv('IS_IN_EVALS', 'false').lower()[:1] in 'ty1'
 
 	@property
-	def BROWSER_USE_VERSION_CHECK(self) -> bool:
+	def AGENT_VERSION_CHECK(self) -> bool:
 		# Сетевую проверку версии отключаем
 		return False
 
@@ -188,19 +187,19 @@ class FlatEnvConfig(BaseSettings):
 	model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', case_sensitive=True, extra='allow')
 
 	# Logging and telemetry
-	BROWSER_USE_LOGGING_LEVEL: str = Field(default='info')
+	AGENT_LOGGING_LEVEL: str = Field(default='info')
 	CDP_LOGGING_LEVEL: str = Field(default='WARNING')
-	BROWSER_USE_DEBUG_LOG_FILE: str | None = Field(default=None)
-	BROWSER_USE_INFO_LOG_FILE: str | None = Field(default=None)
+	AGENT_DEBUG_LOG_FILE: str | None = Field(default=None)
+	AGENT_INFO_LOG_FILE: str | None = Field(default=None)
 	ANONYMIZED_TELEMETRY: bool = Field(default=True)
-	BROWSER_USE_CLOUD_SYNC: bool | None = Field(default=None)
+	AGENT_CLOUD_SYNC: bool | None = Field(default=None)
 	CLOUD_API_URL: str = Field(default='https://api.example.com')
-	BROWSER_USE_CLOUD_UI_URL: str = Field(default='')
+	CLOUD_UI_URL: str = Field(default='')
 
 	# Path configuration
 	XDG_CACHE_HOME: str = Field(default='~/.cache')
 	XDG_CONFIG_HOME: str = Field(default='~/.config')
-	BROWSER_USE_CONFIG_DIR: str | None = Field(default=None)
+	AGENT_CONFIG_DIR: str | None = Field(default=None)
 
 	# LLM API keys
 	OPENAI_API_KEY: str = Field(default='')
@@ -218,19 +217,19 @@ class FlatEnvConfig(BaseSettings):
 	IN_DOCKER: bool | None = Field(default=None)
 	IS_IN_EVALS: bool = Field(default=False)
 	WIN_FONT_DIR: str = Field(default='C:\\Windows\\Fonts')
-	BROWSER_USE_VERSION_CHECK: bool = Field(default=False)
+	AGENT_VERSION_CHECK: bool = Field(default=False)
 
 	# Совместимость с переменными окружения старого формата (часть может не использоваться)
-	BROWSER_USE_CONFIG_PATH: str | None = Field(default=None)
-	BROWSER_USE_HEADLESS: bool | None = Field(default=None)
-	BROWSER_USE_ALLOWED_DOMAINS: str | None = Field(default=None)
-	BROWSER_USE_LLM_MODEL: str | None = Field(default=None)
+	AGENT_CONFIG_PATH: str | None = Field(default=None)
+	AGENT_HEADLESS: bool | None = Field(default=None)
+	AGENT_ALLOWED_DOMAINS: str | None = Field(default=None)
+	AGENT_LLM_MODEL: str | None = Field(default=None)
 
 	# Proxy env vars
-	BROWSER_USE_PROXY_URL: str | None = Field(default=None)
-	BROWSER_USE_NO_PROXY: str | None = Field(default=None)
-	BROWSER_USE_PROXY_USERNAME: str | None = Field(default=None)
-	BROWSER_USE_PROXY_PASSWORD: str | None = Field(default=None)
+	AGENT_PROXY_URL: str | None = Field(default=None)
+	AGENT_NO_PROXY: str | None = Field(default=None)
+	AGENT_PROXY_USERNAME: str | None = Field(default=None)
+	AGENT_PROXY_PASSWORD: str | None = Field(default=None)
 
 
 class DBStyleEntry(BaseModel):
@@ -246,7 +245,7 @@ class BrowserProfileEntry(DBStyleEntry):
 
 	model_config = ConfigDict(extra='allow')
 
-	# Common browser profile fields for reference
+	# Общие поля профиля браузера
 	headless: bool | None = None
 	user_data_dir: str | None = None
 	allowed_domains: list[str] | None = None
@@ -395,10 +394,10 @@ class Config:
 	def _get_config_path(self) -> Path:
 		"""Get config path from fresh env config."""
 		env_config = FlatEnvConfig()
-		if env_config.BROWSER_USE_CONFIG_PATH:
-			return Path(env_config.BROWSER_USE_CONFIG_PATH).expanduser()
-		elif env_config.BROWSER_USE_CONFIG_DIR:
-			return Path(env_config.BROWSER_USE_CONFIG_DIR).expanduser() / 'config.json'
+		if env_config.AGENT_CONFIG_PATH:
+			return Path(env_config.AGENT_CONFIG_PATH).expanduser()
+		elif env_config.AGENT_CONFIG_DIR:
+			return Path(env_config.AGENT_CONFIG_DIR).expanduser() / 'config.json'
 		else:
 			xdg_config = Path(env_config.XDG_CONFIG_HOME).expanduser()
 			return xdg_config / 'agent' / 'config.json'
@@ -459,24 +458,24 @@ class Config:
 		env_config = FlatEnvConfig()
 
 		# Apply MCP-specific env var overrides
-		if env_config.BROWSER_USE_HEADLESS is not None:
-			config['browser_profile']['headless'] = env_config.BROWSER_USE_HEADLESS
+		if env_config.AGENT_HEADLESS is not None:
+			config['browser_profile']['headless'] = env_config.AGENT_HEADLESS
 
-		if env_config.BROWSER_USE_ALLOWED_DOMAINS:
-			domains = [d.strip() for d in env_config.BROWSER_USE_ALLOWED_DOMAINS.split(',') if d.strip()]
+		if env_config.AGENT_ALLOWED_DOMAINS:
+			domains = [d.strip() for d in env_config.AGENT_ALLOWED_DOMAINS.split(',') if d.strip()]
 			config['browser_profile']['allowed_domains'] = domains
 
 		# Proxy settings (Chromium) -> consolidated `proxy` dict
 		proxy_dict: dict[str, Any] = {}
-		if env_config.BROWSER_USE_PROXY_URL:
-			proxy_dict['server'] = env_config.BROWSER_USE_PROXY_URL
-		if env_config.BROWSER_USE_NO_PROXY:
+		if env_config.AGENT_PROXY_URL:
+			proxy_dict['server'] = env_config.AGENT_PROXY_URL
+		if env_config.AGENT_NO_PROXY:
 			# store bypass as comma-separated string to match Chrome flag
-			proxy_dict['bypass'] = ','.join([d.strip() for d in env_config.BROWSER_USE_NO_PROXY.split(',') if d.strip()])
-		if env_config.BROWSER_USE_PROXY_USERNAME:
-			proxy_dict['username'] = env_config.BROWSER_USE_PROXY_USERNAME
-		if env_config.BROWSER_USE_PROXY_PASSWORD:
-			proxy_dict['password'] = env_config.BROWSER_USE_PROXY_PASSWORD
+			proxy_dict['bypass'] = ','.join([d.strip() for d in env_config.AGENT_NO_PROXY.split(',') if d.strip()])
+		if env_config.AGENT_PROXY_USERNAME:
+			proxy_dict['username'] = env_config.AGENT_PROXY_USERNAME
+		if env_config.AGENT_PROXY_PASSWORD:
+			proxy_dict['password'] = env_config.AGENT_PROXY_PASSWORD
 		if proxy_dict:
 			# ensure section exists
 			config.setdefault('browser_profile', {})
@@ -485,8 +484,8 @@ class Config:
 		if env_config.OPENAI_API_KEY:
 			config['llm']['api_key'] = env_config.OPENAI_API_KEY
 
-		if env_config.BROWSER_USE_LLM_MODEL:
-			config['llm']['model'] = env_config.BROWSER_USE_LLM_MODEL
+		if env_config.AGENT_LLM_MODEL:
+			config['llm']['model'] = env_config.AGENT_LLM_MODEL
 
 		return config
 

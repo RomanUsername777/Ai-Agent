@@ -773,7 +773,7 @@ rm default_storage_state.json
 
 1. **Клонируйте репозиторий**
    ```bash
-   git clone https://github.com/your-repo/agent.git
+   git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ>
    cd agent
    ```
 

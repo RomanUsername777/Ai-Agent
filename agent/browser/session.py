@@ -2612,7 +2612,7 @@ class BrowserSession(BaseModel):
 				// Interactive elements data
 				const interactiveElements = {json.dumps(elements_data)};
 
-				console.log('=== BROWSER-USE HIGHLIGHTING ===');
+				console.log('=== AGENT HIGHLIGHTING ===');
 				console.log('Highlighting', interactiveElements.length, 'interactive elements');
 
 				// Double-check: Remove any existing highlight container first

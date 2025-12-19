@@ -52,4 +52,13 @@ results/
 default_storage_state.json
 yandex_mail_storage.json
 
+### Документация (если есть)
+docs/
+documentation/
+*.pdf
+*.epub
+*.chm
+reference/
+references/
+
 

@@ -318,14 +318,10 @@ class EnhancedSnapshotNode:
 @dataclass(slots=True)
 class EnhancedDOMTreeNode:
 	"""
-	Enhanced DOM tree node that contains information from AX, DOM, and Snapshot trees. It's mostly based on the types on DOM node type with enhanced data from AX and Snapshot trees.
+	Enhanced DOM tree node that contains information from AX, DOM, and Snapshot trees.
 
 	@dev when serializing check if the value is a valid value first!
 
-	Learn more about the fields:
-	- (DOM node) https://chromedevtools.github.io/devtools-protocol/tot/DOM/#type-BackendNode
-	- (AX node) https://chromedevtools.github.io/devtools-protocol/tot/Accessibility/#type-AXNode
-	- (Snapshot node) https://chromedevtools.github.io/devtools-protocol/tot/DOMSnapshot/#type-DOMNode
 	"""
 
 	# region - DOM Node data

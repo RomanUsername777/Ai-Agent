@@ -1,4 +1,4 @@
-"""Recording Watchdog for Browser Use Sessions."""
+"""Recording Watchdog для сессий агента."""
 
 import asyncio
 from pathlib import Path

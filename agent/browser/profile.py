@@ -267,7 +267,7 @@ class BrowserChannel(str, Enum):
 
 
 # Using constants from central location in agent.config
-BROWSERUSE_DEFAULT_CHANNEL = BrowserChannel.CHROMIUM
+AGENT_DEFAULT_CHANNEL = BrowserChannel.CHROMIUM
 
 
 # ===== Type definitions with validators =====
@@ -284,8 +284,6 @@ class BrowserContextArgs(BaseModel):
 	"""
 	Base model for common browser context parameters used by
 	both BrowserType.new_context() and BrowserType.launch_persistent_context().
-
-	https://playwright.dev/python/docs/api/class-browser#browser-new-context
 	"""
 
 	model_config = ConfigDict(extra='ignore', validate_assignment=False, revalidate_instances='always', populate_by_name=True)
@@ -325,9 +323,6 @@ class BrowserConnectArgs(BaseModel):
 	"""
 	Base model for common browser connect parameters used by
 	both connect_over_cdp() and connect_over_ws().
-
-	https://playwright.dev/python/docs/api/class-browsertype#browser-type-connect
-	https://playwright.dev/python/docs/api/class-browsertype#browser-type-connect-over-cdp
 	"""
 
 	model_config = ConfigDict(extra='ignore', validate_assignment=True, revalidate_instances='always', populate_by_name=True)
@@ -339,8 +334,6 @@ class BrowserLaunchArgs(BaseModel):
 	"""
 	Base model for common browser launch parameters used by
 	both launch() and launch_persistent_context().
-
-	https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch
 	"""
 
 	model_config = ConfigDict(
@@ -373,9 +366,9 @@ class BrowserLaunchArgs(BaseModel):
 			'--hide-scrollbars',  # всегда показываем скроллбары на скриншотах, чтобы агент понимал, что есть ещё контент ниже
 			'--disable-features=AcceptCHFrame,AutoExpandDetailsElement,AvoidUnnecessaryBeforeUnloadCheckSync,CertificateTransparencyComponentUpdater,DeferRendererTasksAfterInput,DestroyProfileOnBrowserClose,DialMediaRouteProvider,ExtensionManifestV2Disabled,GlobalMediaControls,HttpsUpgrades,ImprovedCookieControls,LazyFrameLoading,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate',
 		],
-		description='List of default CLI args to stop playwright from applying (see https://github.com/microsoft/playwright/blob/41008eeddd020e2dee1c540f7c0cdfa337e99637/packages/playwright-core/src/server/chromium/chromiumSwitches.ts)',
+		description='List of default CLI args to stop playwright from applying',
 	)
-	channel: BrowserChannel | None = None  # https://playwright.dev/docs/browsers#chromium-headless-shell
+	channel: BrowserChannel | None = None
 	chromium_sandbox: bool = Field(
 		default=not CONFIG.IN_DOCKER, description='Whether to enable Chromium sandboxing (recommended unless inside Docker).'
 	)
@@ -452,10 +445,7 @@ class BrowserNewContextArgs(BrowserContextArgs):
 	storage_state: str | Path | dict[str, Any] | None = None
 	# TODO: use StorageState type instead of dict[str, Any]
 
-	# to apply this to existing contexts (incl cookies, localStorage, IndexedDB), see:
-	# - https://github.com/microsoft/playwright/pull/34591/files
-	# - playwright-core/src/server/storageScript.ts restore() function
-	# - https://github.com/Skn0tt/playwright/blob/c446bc44bac4fbfdf52439ba434f92192459be4e/packages/playwright-core/src/server/storageScript.ts#L84C1-L123C2
+	# to apply this to existing contexts (incl cookies, localStorage, IndexedDB)
 
 	# @field_validator('storage_state', mode='after')
 	# def load_storage_state_from_file(self) -> Self:
@@ -743,8 +733,8 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 		to avoid corrupting the default data dir created with a different channel.
 		"""
 
-		is_not_using_default_chromium = self.executable_path or self.channel not in (BROWSERUSE_DEFAULT_CHANNEL, None)
-		if self.user_data_dir == CONFIG.BROWSER_USE_DEFAULT_USER_DATA_DIR and is_not_using_default_chromium:
+		is_not_using_default_chromium = self.executable_path or self.channel not in (AGENT_DEFAULT_CHANNEL, None)
+		if self.user_data_dir == CONFIG.AGENT_DEFAULT_USER_DATA_DIR and is_not_using_default_chromium:
 			alternate_name = (
 				Path(self.executable_path).name.lower().replace(' ', '-')
 				if self.executable_path
@@ -753,9 +743,9 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 				else 'None'
 			)
 			logger.warning(
-				f'⚠️ {self} Changing user_data_dir= {_log_pretty_path(self.user_data_dir)} ➡️ .../default-{alternate_name} to avoid {alternate_name.upper()} corruping default profile created by {BROWSERUSE_DEFAULT_CHANNEL.name}'
+				f'⚠️ {self} Changing user_data_dir= {_log_pretty_path(self.user_data_dir)} ➡️ .../default-{alternate_name} to avoid {alternate_name.upper()} corruping default profile created by {AGENT_DEFAULT_CHANNEL.name}'
 			)
-			self.user_data_dir = CONFIG.BROWSER_USE_DEFAULT_USER_DATA_DIR.parent / f'default-{alternate_name}'
+			self.user_data_dir = CONFIG.AGENT_DEFAULT_USER_DATA_DIR.parent / f'default-{alternate_name}'
 		return self
 
 	@model_validator(mode='after')
@@ -970,7 +960,7 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 		]
 
 		# Создаём директорию кеша расширений
-		cache_dir = CONFIG.BROWSER_USE_EXTENSIONS_DIR
+		cache_dir = CONFIG.AGENT_EXTENSIONS_DIR
 		cache_dir.mkdir(parents=True, exist_ok=True)
 		# logger.debug(f'📁 Extensions cache directory: {_log_pretty_path(cache_dir)}')
 

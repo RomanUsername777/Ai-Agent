@@ -369,7 +369,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		# Initialize file system and screenshot service (упрощённо, без сохранения состояния в AgentState)
 		self._set_file_system(file_system_path)
 		self._set_screenshot_service()
-		
+
 		# Инициализация sub-агентов для специализированных задач
 		self.email_subagent = EmailSubAgent()
 
@@ -1094,7 +1094,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				)
 
 		if self.settings.save_conversation_path and self.state.last_model_output:
-			# Treat save_conversation_path as a directory (consistent with other recording paths)
+			# Обработка save_conversation_path как директории (согласованно с другими путями записи)
 			conversation_dir = Path(self.settings.save_conversation_path)
 			conversation_filename = f'conversation_{self.id}_{self.state.n_steps}.txt'
 			target = conversation_dir / conversation_filename
@@ -1417,7 +1417,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		self.logger.debug(f'🤖 Версия библиотеки агента {self.version} ({self.source})')
 
 		# Check for latest version and log upgrade message if needed
-		if CONFIG.BROWSER_USE_VERSION_CHECK:
+		if CONFIG.AGENT_VERSION_CHECK:
 			latest_version = await check_latest_agent_version()
 			if latest_version and latest_version != self.version:
 				self.logger.info(
@@ -1555,7 +1555,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				task_preview = self.task[:10] if len(self.task) > 10 else self.task
 				self.logger.info('')
 				self.logger.info('Failed because of CAPTCHA? For better browser stealth, try:')
-				self.logger.info(f'   agent = Agent(task="{task_preview}...", browser=Browser(use_cloud=True))')
+				self.logger.info(f'   agent = Agent(task="{task_preview}...", browser=Browser())')
 
 			# General failure message
 			self.logger.info('')
@@ -2551,7 +2551,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				self.logger.debug(f'LLM response type: {type(summary)}')
 				self.logger.debug(f'LLM response: {summary}')
 			except Exception as structured_error:
-				# If structured output fails (e.g., Browser-Use LLM doesn't support it for this type),
+				# Если структурированный вывод не поддерживается LLM для этого типа,
 				# fall back to text response without parsing
 				self.logger.debug(f'Structured output failed: {structured_error}, falling back to text response')
 

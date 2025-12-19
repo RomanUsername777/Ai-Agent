@@ -45,9 +45,6 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 	if hasattr(logging.getLoggerClass(), methodName):
 		raise AttributeError(f'{methodName} already defined in logger class')
 
-	# This method was inspired by the answers to Stack Overflow post
-	# http://stackoverflow.com/q/2183233/2988730, especially
-	# http://stackoverflow.com/a/13638084/2988730
 	def logForLevel(self, message, *args, **kwargs):
 		if self.isEnabledFor(levelNum):
 			self._log(levelNum, message, args, **kwargs)
@@ -77,7 +74,7 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 	except AttributeError:
 		pass  # Level already exists, which is fine
 
-	log_type = log_level or CONFIG.BROWSER_USE_LOGGING_LEVEL
+	log_type = log_level or CONFIG.AGENT_LOGGING_LEVEL
 
 	# Check if handlers are already set up
 	if logging.getLogger().hasHandlers() and not force_setup:
@@ -87,7 +84,7 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 	root = logging.getLogger()
 	root.handlers = []
 
-	class BrowserUseFormatter(logging.Formatter):
+	class AgentFormatter(logging.Formatter):
 		def __init__(self, fmt, log_level):
 			super().__init__(fmt)
 			self.log_level = log_level
@@ -125,10 +122,10 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 	# adittional setLevel here to filter logs
 	if log_type == 'result':
 		console.setLevel('RESULT')
-		console.setFormatter(BrowserUseFormatter('%(message)s', log_level))
+		console.setFormatter(AgentFormatter('%(message)s', log_level))
 	else:
 		console.setLevel(log_level)  # Keep console at original log level (e.g., INFO)
-		console.setFormatter(BrowserUseFormatter('%(levelname)-8s [%(name)s] %(message)s', log_level))
+		console.setFormatter(AgentFormatter('%(levelname)-8s [%(name)s] %(message)s', log_level))
 
 	# Configure root logger only
 	root.addHandler(console)
@@ -140,7 +137,7 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 	if debug_log_file:
 		debug_handler = logging.FileHandler(debug_log_file, encoding='utf-8')
 		debug_handler.setLevel(logging.DEBUG)
-		debug_handler.setFormatter(BrowserUseFormatter('%(asctime)s - %(levelname)-8s [%(name)s] %(message)s', logging.DEBUG))
+		debug_handler.setFormatter(AgentFormatter('%(asctime)s - %(levelname)-8s [%(name)s] %(message)s', logging.DEBUG))
 		file_handlers.append(debug_handler)
 		root.addHandler(debug_handler)
 
@@ -148,7 +145,7 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 	if info_log_file:
 		info_handler = logging.FileHandler(info_log_file, encoding='utf-8')
 		info_handler.setLevel(logging.INFO)
-		info_handler.setFormatter(BrowserUseFormatter('%(asctime)s - %(levelname)-8s [%(name)s] %(message)s', logging.INFO))
+		info_handler.setFormatter(AgentFormatter('%(asctime)s - %(levelname)-8s [%(name)s] %(message)s', logging.INFO))
 		file_handlers.append(info_handler)
 		root.addHandler(info_handler)
 
@@ -203,7 +200,7 @@ def setup_logging(stream=None, log_level=None, force_setup=False, debug_log_file
 			cdp_logger.propagate = False
 
 	logger = logging.getLogger('agent')
-	# logger.debug('BrowserUse logging setup complete with level %s', log_type)
+	# logger.debug('Agent logging setup complete with level %s', log_type)
 
 	# Silence third-party loggers (but not CDP ones which we configured above)
 	third_party_loggers = [

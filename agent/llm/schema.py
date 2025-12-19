@@ -30,7 +30,7 @@ class SchemaOptimizer:
 		# Generate original schema
 		original_schema = model.model_json_schema()
 
-		# Extract $defs for reference resolution, then flatten everything
+		# Извлечение $defs для разрешения ссылок, затем уплощение всего
 		defs_lookup = original_schema.get('$defs', {})
 
 		# Create optimized schema with flattening

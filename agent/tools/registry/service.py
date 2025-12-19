@@ -414,7 +414,7 @@ class Registry(Generic[Context]):
 
 		Args:
 			params: The parameter object containing <secret>placeholder</secret> tags
-			sensitive_data: Dictionary of sensitive data, either in old format {key: value}
+			sensitive_data: Словарь чувствительных данных в старом формате {key: value} или новом
 						   or new format {domain_pattern: {key: value}}
 			current_url: Optional current URL for domain matching
 
@@ -440,7 +440,7 @@ class Registry(Generic[Context]):
 					if match_url_with_domain_pattern(current_url, domain_or_key):
 						applicable_secrets.update(content)
 			else:
-				# Old format: {key: value}, expose to all domains (only allowed for legacy reasons)
+				# Старый формат: {key: value}, доступен для всех доменов (только для обратной совместимости)
 				applicable_secrets[domain_or_key] = content
 
 		# Filter out empty values

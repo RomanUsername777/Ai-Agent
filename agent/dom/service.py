@@ -37,7 +37,7 @@ class DomService:
 
 	Either browser or page must be provided.
 
-	TODO: currently we start a new websocket connection PER STEP, we should definitely keep this persistent
+	# Создается новое WebSocket соединение на каждом шаге
 	"""
 
 	logger: logging.Logger
@@ -75,7 +75,7 @@ class DomService:
 						EnhancedAXProperty(
 							name=property['name'],
 							value=property.get('value', {}).get('value', None),
-							# related_nodes=[],  # TODO: add related nodes
+							# related_nodes=[],
 						)
 					)
 				except ValueError:
@@ -103,7 +103,7 @@ class DomService:
 			visual_viewport = metrics.get('visualViewport', {})
 
 			# IMPORTANT: Use CSS viewport instead of device pixel viewport
-			# This fixes the coordinate mismatch on high-DPI displays
+			# Исправление несоответствия координат на дисплеях с высоким DPI
 			css_visual_viewport = metrics.get('cssVisualViewport', {})
 			css_layout_viewport = metrics.get('cssLayoutViewport', {})
 
@@ -660,7 +660,7 @@ class DomService:
 			# only do this if the iframe is visible (otherwise it's not worth it)
 
 			if (
-				# TODO: hacky way to disable cross origin iframes for now
+				# Временно отключаем cross-origin iframes
 				self.cross_origin_iframes and node['nodeName'].upper() == 'IFRAME' and node.get('contentDocument', None) is None
 			):  # None meaning there is no content
 				# Check iframe depth to prevent infinite recursion
@@ -723,7 +723,7 @@ class DomService:
 							content_document, _ = await self.get_dom_tree(
 								target_id=iframe_document_target['targetId'],
 								all_frames=all_frames,
-								# TODO: experiment with this values -> not sure whether the whole cross origin iframe should be ALWAYS included as soon as some part of it is visible or not.
+								# Экспериментальные значения для определения видимости cross-origin iframes
 								# Current config: if the cross origin iframe is AT ALL visible, then just include everything inside of it!
 								# initial_html_frames=updated_html_frames,
 								initial_total_frame_offset=total_frame_offset,

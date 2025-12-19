@@ -302,7 +302,7 @@ def create_default_config() -> DBStyleConfigJSON:
 
 
 def load_and_migrate_config(config_path: Path) -> DBStyleConfigJSON:
-	"""Load config.json or create fresh one if old format detected."""
+	"""Загрузка config.json или создание нового при обнаружении старого формата."""
 	if not config_path.exists():
 		# Create fresh config with defaults
 		config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -324,7 +324,7 @@ def load_and_migrate_config(config_path: Path) -> DBStyleConfigJSON:
 				# Already in new format
 				return DBStyleConfigJSON(**data)
 
-		# Old format detected - delete it and create fresh config
+		# Обнаружен старый формат - удаление и создание нового конфига
 		logger.debug(f'Old config format detected at {config_path}, creating fresh config')
 		new_config = create_default_config()
 

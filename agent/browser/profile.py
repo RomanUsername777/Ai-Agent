@@ -35,7 +35,7 @@ CHROME_DISABLED_COMPONENTS = [
 	'HttpsUpgrades',
 	'ImprovedCookieControls',
 	'LazyFrameLoading',
-	# Скрывает функцию Lens в адресной строке; в неофициальных сборках она всё равно не работает.
+	# Скрывает функцию Lens в адресной строке
 	'LensOverlay',
 	'MediaRouter',
 	'PaintHolding',

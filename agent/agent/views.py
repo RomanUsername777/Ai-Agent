@@ -138,7 +138,7 @@ class ActionResult(BaseModel):
 	# Metadata for observability (e.g., click coordinates)
 	metadata: dict | None = None
 
-	# Deprecated
+	# Устаревший метод
 	include_in_memory: bool = False  # whether to include in extracted_content inside long_term_memory
 
 	@model_validator(mode='after')
@@ -204,7 +204,7 @@ class AgentOutput(BaseModel):
 
 	@property
 	def current_state(self) -> AgentBrain:
-		"""For backward compatibility - returns an AgentBrain with the flattened properties"""
+		"""Для обратной совместимости - возвращает AgentBrain с плоскими свойствами"""
 		return AgentBrain(
 			thinking=self.thinking,
 			evaluation_previous_goal=self.evaluation_previous_goal if self.evaluation_previous_goal else '',
@@ -308,7 +308,7 @@ class AgentHistory(BaseModel):
 		if not sensitive_data:
 			return value
 
-		# Collect all sensitive values, immediately converting old format to new format
+		# Сбор всех чувствительных значений с конвертацией старого формата в новый
 		sensitive_values: dict[str, str] = {}
 
 		# Process all sensitive data entries
@@ -318,7 +318,7 @@ class AgentHistory(BaseModel):
 				for key, val in content.items():
 					if val:  # Skip empty values
 						sensitive_values[key] = val
-			elif content:  # Old format: {key: value} - convert to new format internally
+			elif content:  # Старый формат: {key: value} - конвертация в новый формат
 				# We treat this as if it was {'http*://*': {key_or_domain: content}}
 				sensitive_values[key_or_domain] = content
 

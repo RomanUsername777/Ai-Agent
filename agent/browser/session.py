@@ -143,12 +143,12 @@ class BrowserSession(BaseModel):
 		cloud_profile_id: UUID | str | None = None,
 		cloud_proxy_country_code: ProxyCountryCode | None = None,
 		cloud_timeout: int | None = None,
-		# Backward compatibility aliases
+		# Алиасы для обратной совместимости
 		profile_id: UUID | str | None = None,
 		proxy_country_code: ProxyCountryCode | None = None,
 		timeout: int | None = None,
 		use_cloud: bool | None = None,
-		cloud_browser: bool | None = None,  # Backward compatibility alias
+		cloud_browser: bool | None = None,  # Алиас для обратной совместимости
 		cloud_browser_params: CloudBrowserParams | None = None,
 		# Common params that work with cloud
 		id: str | None = None,
@@ -240,7 +240,7 @@ class BrowserSession(BaseModel):
 		cloud_profile_id: UUID | str | None = None,
 		cloud_proxy_country_code: ProxyCountryCode | None = None,
 		cloud_timeout: int | None = None,
-		# Backward compatibility aliases for cloud params
+		# Алиасы для обратной совместимости для cloud параметров
 		profile_id: UUID | str | None = None,
 		proxy_country_code: ProxyCountryCode | None = None,
 		timeout: int | None = None,
@@ -279,7 +279,7 @@ class BrowserSession(BaseModel):
 		# BrowserProfile specific fields
 		## Cloud Browser Fields
 		use_cloud: bool | None = None,
-		cloud_browser: bool | None = None,  # Backward compatibility alias
+		cloud_browser: bool | None = None,  # Алиас для обратной совместимости
 		cloud_browser_params: CloudBrowserParams | None = None,
 		## Other params
 		disable_security: bool | None = None,
@@ -326,7 +326,7 @@ class BrowserSession(BaseModel):
 			and v is not None
 		}
 
-		# Handle backward compatibility: prefer cloud_* params over old names
+		# Обработка обратной совместимости: предпочтение параметрам cloud_* перед старыми именами
 		final_profile_id = cloud_profile_id if cloud_profile_id is not None else profile_id
 		final_proxy_country_code = cloud_proxy_country_code if cloud_proxy_country_code is not None else proxy_country_code
 		final_timeout = cloud_timeout if cloud_timeout is not None else timeout
@@ -341,7 +341,7 @@ class BrowserSession(BaseModel):
 			profile_kwargs['cloud_browser_params'] = cloud_params
 			profile_kwargs['use_cloud'] = True
 
-		# Handle backward compatibility: map cloud_browser to use_cloud
+		# Обработка обратной совместимости: маппинг cloud_browser на use_cloud
 		if 'cloud_browser' in profile_kwargs:
 			profile_kwargs['use_cloud'] = profile_kwargs.pop('cloud_browser')
 
@@ -2606,7 +2606,7 @@ class BrowserSession(BaseModel):
 			# Get CDP session
 			cdp_session = await self.get_or_create_cdp_session()
 
-			# Create the proven highlighting script from v0.6.0 with fixed positioning
+			# Создание скрипта подсветки элементов с фиксированным позиционированием
 			script = f"""
 			(function() {{
 				// Interactive elements data
@@ -2632,7 +2632,7 @@ class BrowserSession(BaseModel):
 				// Use maximum z-index for visibility
 				const HIGHLIGHT_Z_INDEX = 2147483647;
 
-				// Create container for all highlights - use FIXED positioning (key insight from v0.6.0)
+				// Создание контейнера для всех подсветок с фиксированным позиционированием
 				const container = document.createElement('div');
 				container.id = 'agent-debug-highlights';
 				container.setAttribute('data-agent-highlight', 'container');

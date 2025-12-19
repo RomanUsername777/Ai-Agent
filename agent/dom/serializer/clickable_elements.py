@@ -20,7 +20,7 @@ class ClickableElementDetector:
 
 		# CRITICAL: Check isClickable from DOMSnapshot FIRST (like Go reference)
 		# This catches elements that Chrome considers clickable even without explicit roles/attributes
-		# This is the key to detecting buttons like "Откликнуться" and "Найти" on hh.ru
+		# This is the key to detecting clickable buttons on web pages
 		if node.snapshot_node and node.snapshot_node.is_clickable:
 			return True
 

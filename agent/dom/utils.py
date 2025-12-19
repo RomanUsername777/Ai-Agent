@@ -50,7 +50,7 @@ def generate_css_selector_for_element(enhanced_node) -> str | None:
 				# Append the valid class name to the CSS selector
 				css_selector += f'.{class_name}'
 
-	# Expanded set of safe attributes that are stable and useful for selection (from v0.5.0)
+	# Расширенный набор безопасных атрибутов для стабильного выбора элементов
 	SAFE_ATTRIBUTES = {
 		# Data attributes (if they're stable in your application)
 		'id',

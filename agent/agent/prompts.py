@@ -323,7 +323,7 @@ class AgentMessagePrompt:
 			
 			# Проверяем, есть ли открытое модальное окно
 			# УНИВЕРСАЛЬНАЯ ЛОГИКА: используем только стандартные ARIA атрибуты (role="dialog" или aria-modal="true")
-			# Это работает на любых сайтах, не только на hh.ru
+			# Это работает на любых сайтах
 			has_open_dialog = False
 			dialog_element_index = None
 			for element_index, element in selector_map.items():
@@ -343,7 +343,6 @@ class AgentMessagePrompt:
 					dialog_element_index = element_index
 					break
 				
-				# Убрал избыточные диагностические логи - они повторяются каждый раз и не несут критической информации
 			
 			# Также ищем кнопки отправки (не только "Откликнуться", но и "Отправить", "Подтвердить" и т.д.)
 			submit_buttons = []
@@ -355,12 +354,10 @@ class AgentMessagePrompt:
 			all_textareas_in_range = []
 			all_textareas_on_page = []  # Все textarea на странице (для случая, когда модальное окно не найдено)
 			
-			# ЛОГИРОВАНИЕ: логируем все найденные textarea
 			import logging
 			logger = logging.getLogger(__name__)
 			
-			# ВАЖНО: ищем textarea даже если модальное окно не найдено - на некоторых страницах сопроводительное письмо прямо на странице
-			# Убрал избыточный лог - поиск происходит автоматически
+			# Ищем textarea даже если модальное окно не найдено - на некоторых страницах формы находятся прямо на странице
 			
 			for idx, elem in selector_map.items():
 				tag = getattr(elem, 'tag_name', '').lower() if hasattr(elem, 'tag_name') else ''
@@ -408,10 +405,7 @@ class AgentMessagePrompt:
 							textarea_info['is_after_dialog'] = idx > dialog_element_index
 							textarea_info['index_diff'] = abs(idx - dialog_element_index)
 							all_textareas_in_range.append(textarea_info)
-							# Убрал избыточный лог для каждого textarea
-							
-							# УБРАНО: автоматический выбор textarea - агент должен сам анализировать
-							# Собираем информацию о textarea для внутренней логики, но не выбираем автоматически
+							# Собираем информацию о textarea для внутренней логики
 							# Агент видит все textarea в browser_state и должен сам определить, какой использовать
 					else:
 						# Если модальное окно НЕ найдено, ищем textarea по всей странице
@@ -465,7 +459,6 @@ class AgentMessagePrompt:
 									# Ограничиваем длину текста - если слишком длинный, это контейнер, а не кнопка
 									if len(children_text.strip()) < 200:
 										element_text = children_text.strip()
-									# Убрал избыточный лог - слишком много элементов
 							except:
 								pass
 						# Также пробуем get_meaningful_text_for_llm
@@ -532,8 +525,6 @@ class AgentMessagePrompt:
 							has_submit_attrs_early = button_type_value == 'submit' or (data_qa_value and 'submit' in str(data_qa_value).lower())
 							if tag_is_button or tag_is_a or has_role_button or has_submit_attrs_early:
 								is_likely_in_dialog = True
-								# Убрал избыточный лог - слишком много элементов
-							# Диагностическое логирование для элементов в диапазоне модального окна - убрано (избыточно)
 				
 				# Если это кнопка внутри модального окна, добавляем в список
 				# УНИВЕРСАЛЬНАЯ ЛОГИКА: исключаем сам контейнер модального окна
@@ -601,7 +592,6 @@ class AgentMessagePrompt:
 						
 						if not has_cancel_text or is_submit_by_attrs:
 							all_buttons_in_dialog.append((element_index, element_text[:50] if element_text else '(без текста)', is_visible))
-							# Убрал избыточный лог для каждого элемента - слишком много
 				
 				# Ищем кнопки с текстом отправки или по атрибутам
 				submit_keywords = ['отправить', 'откликнуться', 'отклик', 'подтвердить', 'сохранить', 'готово', 'далее', 'send', 'submit']
@@ -617,7 +607,6 @@ class AgentMessagePrompt:
 							has_submit_text = any(keyword in all_children_text.lower() for keyword in submit_keywords)
 							if has_submit_text and not element_text:
 								element_text = all_children_text.strip()  # Обновляем element_text для дальнейшего использования
-								# Убрал избыточный лог - слишком много элементов
 					except:
 						pass
 				
@@ -656,7 +645,6 @@ class AgentMessagePrompt:
 						has_submit_keyword = any(kw in data_qa_str for kw in ['submit', 'отправ', 'send'])
 						if has_submit_keyword and not has_submit_by_attrs:
 							has_submit_by_attrs = True
-							# Убрал избыточные логи
 					
 					# Проверяем aria-label: ищем submit/отправ/отклик
 					if aria_label_value:
@@ -668,7 +656,6 @@ class AgentMessagePrompt:
 					# type="submit" - явный признак кнопки отправки (НО только если нет явных признаков отмены)
 					if button_type_value == 'submit' and not has_cancel_indicator:
 						has_submit_by_attrs = True
-						# Убрал избыточный лог
 				
 				# Кнопка отправки - это либо текст, либо атрибуты указывают на submit (НО ТОЛЬКО ЕСЛИ НЕ кнопка отмены)
 				has_submit_indicator = (has_submit_text or has_submit_by_attrs) and not has_cancel_indicator
@@ -684,7 +671,7 @@ class AgentMessagePrompt:
 				if is_fake_button_container:
 					is_button_like_for_submit = False
 				
-				# Если элемент внутри модального окна и имеет текст "Откликнуться", добавляем его даже если он не прошел все проверки
+				# Если элемент внутри модального окна и имеет текст кнопки отправки, добавляем его даже если он не прошел все проверки
 				# ВАЖНО: исключаем сам контейнер модального окна
 				is_dialog_container_for_submit = (
 					element_index == dialog_element_index or
@@ -701,7 +688,6 @@ class AgentMessagePrompt:
 						# Расширяем диапазон поиска: кнопка может быть далеко после textarea (до 1000 элементов)
 						if (element_index - textarea_in_dialog_index) < 1000:
 							is_after_textarea = True
-							# Убрал избыточный лог - слишком много элементов
 				
 				# УНИВЕРСАЛЬНАЯ ЛОГИКА: исключаем кнопки, которые явно НЕ являются кнопками отправки формы
 				# Проверяем только универсальные признаки: элементы с явными признаками ссылок/навигации вне формы
@@ -995,16 +981,14 @@ class AgentMessagePrompt:
 									submit_text_display = button_text_for_display
 									submit_buttons.append((element_index, submit_text_display + disabled_note, is_visible))
 			
-			# УБРАНО: автоматические рекомендации про элементы "Откликнуться" - агент должен сам анализировать страницу
 			# Агент видит все элементы в browser_state с их текстом, атрибутами и индексами
-			# Пусть агент сам определяет, какие элементы использовать, анализируя содержимое страницы
+			# Агент сам определяет, какие элементы использовать, анализируя содержимое страницы
 			
 			# Добавляем рекомендации для кнопок отправки
 			# ПРИОРИТЕТ: если есть модальное окно, сначала показываем кнопки внутри него
-			# Фильтруем submit_buttons_in_dialog: исключаем контейнер модального окна и кнопки для других вакансий
+			# Фильтруем submit_buttons_in_dialog: исключаем контейнер модального окна и кнопки для других элементов списка
 			submit_buttons_in_dialog_filtered = []
 			if submit_buttons_in_dialog:
-				# Убрал избыточный лог - фильтрация происходит автоматически
 				for btn_index, btn_text, btn_visible in submit_buttons_in_dialog:
 					# Исключаем контейнер модального окна (длинный текст без button/a - это контейнер)
 					if btn_index == dialog_element_index or (btn_text and len(btn_text) > 200):
@@ -1026,7 +1010,7 @@ class AgentMessagePrompt:
 						elif tag == 'div' and btn_text and ('уважаемые коллеги' in btn_text.lower() or 'сопроводительн' in btn_text.lower() or len(btn_text) > 50):
 							should_skip = True
 					
-					# Исключаем кнопки для отклика на ДРУГИЕ вакансии из списка рекомендаций (не кнопки отправки формы)
+					# Исключаем кнопки для других элементов из списка рекомендаций (не кнопки отправки формы)
 					if not should_skip and btn_index in selector_map:
 						elem = selector_map[btn_index]
 						if hasattr(elem, 'attributes') and elem.attributes:
@@ -1061,7 +1045,7 @@ class AgentMessagePrompt:
 								if is_in_dialog_range and has_submit_text_in_button:
 									# НЕ пропускаем этот элемент - это кнопка отправки формы
 									pass
-								# Кнопки с этими data-qa относятся к рекомендациям вакансий, а не к форме отправки
+								# Кнопки с этими data-qa относятся к рекомендациям элементов списка, а не к форме отправки
 								# УНИВЕРСАЛЬНАЯ ЛОГИКА: исключаем элементы с признаками навигации/ссылок
 								elif any(kw in data_qa_str for kw in ['link', 'nav', 'menu', 'breadcrumb']):
 									should_skip = True
@@ -1069,13 +1053,10 @@ class AgentMessagePrompt:
 									# Эта кнопка имеет наивысший приоритет - добавляем её первой
 									submit_buttons_in_dialog_filtered.insert(0, (btn_index, btn_text or '(кнопка отправки)', btn_visible))
 									should_skip = True  # Уже добавлена, пропускаем дальнейшую обработку
-									# Убрал избыточный лог
 					if not should_skip:
 						submit_buttons_in_dialog_filtered.append((btn_index, btn_text, btn_visible))
-				# Убрал избыточный лог - результат виден в итоговом сообщении
 			else:
-				# Убрал избыточные логи - они повторяются каждый раз и не несут критической информации
-				# Примечание: расчет координат и рекомендации выполняются в блоке после фильтрации (строка ~1169),
+				# Расчет координат и рекомендации выполняются в блоке после фильтрации,
 				# если submit_buttons_in_dialog_filtered пуст или не содержит реальных кнопок
 				pass
 			
@@ -1097,17 +1078,9 @@ class AgentMessagePrompt:
 			
 			# Если нет реальных button элементов, пытаемся рассчитать координаты на основе textarea
 			calculated_coordinates = None
-			# УБРАНО: автоматический расчет координат для клика - агент должен сам анализировать скриншот
 			# Если кнопка не найдена по индексу, агент может использовать координатный клик, анализируя скриншот
-			# Или использовать request_user_input как fallback после нескольких неудачных попыток
-			
-			# УБРАНО: автоматические рекомендации про кнопки в модальном окне - агент должен сам анализировать
-			# Агент видит все элементы в browser_state, включая модальные окна
-			# Пусть агент сам определяет структуру формы и нужные кнопки, анализируя текст и контекст
-			
-			# УБРАНО: автоматические рекомендации про textarea - агент должен сам анализировать страницу
-			# Агент видит все textarea в browser_state с их placeholder, aria-label и контекстом
-			# Пусть агент сам определяет, какой textarea для чего, анализируя содержимое страницы
+			# Агент видит все элементы в browser_state, включая модальные окна и textarea
+			# Агент сам определяет структуру формы и нужные элементы, анализируя текст и контекст
 			
 			# БАЛАНС: информативные рекомендации, которые помогают, но не ограничивают анализ
 			# Агент должен сам анализировать страницу, но ему нужна помощь с сопоставлением визуальных элементов и индексов

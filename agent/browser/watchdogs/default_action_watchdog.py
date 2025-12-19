@@ -2374,7 +2374,6 @@ class DefaultActionWatchdog(BaseWatchdog):
 	async def on_ScrollToTextEvent(self, event: ScrollToTextEvent) -> None:
 		"""Handle scroll to text request with CDP. Raises exception if text not found."""
 
-		# TODO: handle looking for text inside cross-origin iframes as well
 
 		# Get focused CDP session using public API (validates and waits for recovery if needed)
 		cdp_session = await self.browser_session.get_or_create_cdp_session()

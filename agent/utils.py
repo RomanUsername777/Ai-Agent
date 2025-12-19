@@ -141,7 +141,7 @@ def extract_json_from_text(text: str) -> str:
 	json_str = re.sub(r',\s*]', ']', json_str)
 	
 	# Убираем множественные пробелы между объектами в массивах
-	# Это исправляет случаи когда после удаления комментариев остаются лишние пробелы
+	# Удаление лишних пробелов после удаления комментариев
 	# Например: `},      {` должно стать `},{`
 	json_str = re.sub(r'\}\s+,\s+\{', '},{', json_str)  # Убираем пробелы между объектами в массиве
 	json_str = re.sub(r'\}\s+,\s+', '},', json_str)  # Убираем пробелы после запятой перед закрывающей скобкой
@@ -158,7 +158,7 @@ def extract_json_from_text(text: str) -> str:
 		# Убираем trailing commas более агрессивно
 		json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
 		# Убираем все пробелы вокруг запятых в массивах (но не внутри строк)
-		# Это исправляет случаи когда после удаления комментариев остаются пробелы
+		# Удаление пробелов после удаления комментариев
 		json_str = re.sub(r'\}\s*,\s*\{', '},{', json_str)  # Убираем пробелы между объектами
 		json_str = re.sub(r'\]\s*,\s*\[', '],[', json_str)  # Убираем пробелы между массивами
 		# Пробуем еще раз распарсить
@@ -335,7 +335,7 @@ class SignalHandler:
 		print('\r', end='', flush=True)
 
 		# these ^^ attempts dont work as far as we can tell
-		# we still dont know what causes the broken input, if you know how to fix it, please let us know
+		# Причина проблемы с вводом неизвестна
 		print('(tip: press [Enter] once to fix escape codes appearing after chrome exit)', file=stderr)
 
 		os._exit(0)

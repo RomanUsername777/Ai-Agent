@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
-	pass  # from agent.skills.views import Skill  # Удалено: не нужно
+	pass
 
 from dotenv import load_dotenv
 from agent.agent.message_manager.utils import save_conversation
@@ -262,7 +262,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 		self.browser_session = browser_session or BrowserSession(
 			browser_profile=browser_profile,
-			id=uuid7str()[:-4] + self.id[-4:],  # re-use the same 4-char suffix so they show up together in logs
+			id=uuid7str()[:-4] + self.id[-4:],  # Повторное использование последних 4 символов для группировки в логах
 		)
 
 		self._demo_mode_enabled: bool = bool(self.browser_profile.demo_mode) if self.browser_session else False
@@ -392,7 +392,6 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		# Verify we can connect to the model
 		self._verify_and_setup_llm()
 
-		# TODO: перенести эту логику в LLM
 		# Обработка попыток использовать use_vision=True с моделями DeepSeek
 		if 'deepseek' in self.llm.model.lower():
 			self.logger.warning('⚠️ Модели DeepSeek пока не поддерживают use_vision=True. Устанавливаю use_vision=False...')
@@ -638,7 +637,6 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 		if source_override is not None:
 			source = source_override
-		# self.logger.debug(f'Version: {version}, Source: {source}')  # moved later to _log_agent_run so that people are more likely to include it in copy-pasted support ticket logs
 		self.version = version
 		self.source = source
 
@@ -756,7 +754,6 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		# Check for new downloads after getting browser state (catches PDF auto-downloads and previous step downloads)
 		await self._check_and_update_downloads(f'Step {self.state.n_steps}: after getting browser state')
 
-		# Логируем что видит агент в DOM для отладки
 		self.logger.info(f'🌐 URL страницы: {browser_state_summary.url}')
 		self.logger.info(f'📄 Title страницы: {browser_state_summary.title}')
 		
@@ -939,7 +936,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		log_level = logging.ERROR if is_final_failure else logging.WARNING
 
 		if 'Could not parse response' in error_msg or 'tool_use_failed' in error_msg or 'Failed to parse JSON' in error_msg:
-			# Упрощаем логирование ошибок парсинга JSON - логируем как debug (модель может иногда возвращать невалидный JSON)
+			# Логирование ошибок парсинга JSON на уровне debug
 			# Обрезаем сообщение об ошибке до разумного размера
 			short_error = error_msg[:300] + '...' if len(error_msg) > 300 else error_msg
 			self.logger.debug(f'Model: {self.llm.model} failed to parse response: {short_error}')
@@ -1988,7 +1985,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self._log_final_outcome_messages()
 
 			# Stop the event bus gracefully, waiting for all events to be processed
-			# Use longer timeout to avoid deadlocks in tests with multiple agents
+			# Использование более длинного таймаута для избежания блокировок при тестировании
 			await self.eventbus.stop(timeout=3.0)
 
 			await self.close()
@@ -2310,11 +2307,11 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 						if self.email_subagent.detect_dialog(browser_state):
 							self.logger.info('ℹ️ Обнаружен открытый диалог - агент должен решить: работать с ним или закрыть через Escape')
 						
-						# Логируем метаданные письма только для почтовых клиентов (для отладки)
+						# Логируем метаданные письма только для почтовых клиентов
 						if self.email_subagent.is_email_client(browser_state):
 							email_metadata = self.email_subagent.extract_email_metadata(browser_state)
 							
-							# Логируем метаданные письма перед действиями (для отладки)
+							# Логируем метаданные письма перед действиями
 							if email_metadata['is_opened'] and action_name == 'click':
 								click_params = action_data.get('click', {})
 								index = click_params.get('index')
@@ -2353,7 +2350,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				# Это критично для SPA-приложений (например, почтовые клиенты), где клик может менять содержимое без изменения URL
 				if action_name in ['click', 'navigate']:
 					# Увеличиваем задержку для SPA приложений, чтобы дать время DOM обновиться
-					# Страницы вакансий на hh.ru и другие SPA требуют времени для загрузки контента
+					# SPA страницы требуют времени для загрузки контента
 					wait_time = 2.0  # Одинаковое время для click и navigate
 					self.logger.info(f'⏳ Ожидание {wait_time}s после {action_name} для обновления DOM (SPA)')
 					await asyncio.sleep(wait_time)
@@ -2495,7 +2492,6 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	async def log_completion(self) -> None:
 		"""Log the completion of the task"""
 		# self._task_end_time = time.time()
-		# self._task_duration = self._task_end_time - self._task_start_time TODO: this is not working when using take_step
 		if self.history.is_successful():
 			self.logger.info('✅ Task completed successfully')
 			await self._demo_mode_log('Task completed successfully', 'success', {'tag': 'task'})
@@ -2969,7 +2965,6 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 	def resume(self) -> None:
 		"""Resume the agent"""
-		# TODO: Locally the browser got closed
 		print('----------------------------------------------------------------------')
 		print('▶️  Resuming agent execution where it left off...\n')
 		self.state.paused = False
@@ -3037,7 +3032,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			# Force garbage collection
 			gc.collect()
 
-			# Debug: Log remaining threads and asyncio tasks
+			# Логирование оставшихся потоков и asyncio задач
 			import threading
 
 			threads = threading.enumerate()

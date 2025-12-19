@@ -160,7 +160,7 @@ class Utils:
 		return (key, None)
 
 
-# Backward compatibility: provide standalone function
+# Обратная совместимость: предоставление отдельной функции
 def get_key_info(key: str) -> tuple[str, int | None]:
 	"""Get the code and windowsVirtualKeyCode for a key.
 

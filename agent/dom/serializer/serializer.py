@@ -582,22 +582,6 @@ class DOMTreeSerializer:
 			and node.original_node.attributes.get('type') == 'file'
 		)
 		
-		# КРИТИЧЕСКИ ВАЖНО: Проверяем, содержит ли элемент текст "Откликнуться"
-		# Если да, всегда оставляем его в дереве, даже если он не видим/не кликабелен
-		# Это нужно для того, чтобы кнопка "Откликнуться" попадала в selector_map
-		has_otkliknitesya_text = False
-		if hasattr(node.original_node, 'get_all_children_text'):
-			try:
-				element_text = node.original_node.get_all_children_text()
-				if element_text and 'Откликнуться' in element_text:
-					# Проверяем, что это не слишком большой контейнер (не body, не огромный div)
-					text_length = len(element_text.strip())
-					# Если текст короткий (< 1000 символов) или элемент кликабелен, это, вероятно, кнопка, а не контейнер
-					if text_length < 1000 or is_clickable:
-						has_otkliknitesya_text = True
-			except:
-				pass
-
 		if (
 			is_visible  # Keep all visible nodes
 			or is_clickable  # Keep all clickable nodes (Chrome DOMSnapshot)
@@ -605,7 +589,6 @@ class DOMTreeSerializer:
 			or node.original_node.node_type == NodeType.TEXT_NODE
 			or node.children
 			or is_file_input  # Keep file inputs even if not visible
-			or has_otkliknitesya_text  # КРИТИЧНО: всегда оставляем элементы с текстом "Откликнуться"
 		):
 			return node
 
@@ -702,29 +685,6 @@ class DOMTreeSerializer:
 				# Не проверяем is_visible или is_clickable - disabled кнопки все равно должны быть доступны агенту
 				should_make_interactive = True
 			
-			# КРИТИЧЕСКИ ВАЖНО: Если элемент содержит текст "Откликнуться", включаем его в selector_map
-			# даже если он не является стандартным button элементом (может быть div с обработчиком клика)
-			# Это нужно для случаев, когда кнопка "Откликнуться" реализована как div, а не button
-			# НО: НЕ добавляем контейнер, если внутри него есть настоящая button кнопка!
-			if not should_make_interactive:
-				element_text = node.original_node.get_all_children_text() if hasattr(node.original_node, 'get_all_children_text') else ''
-				if element_text and 'Откликнуться' in element_text:
-					# КРИТИЧНО: Проверяем, есть ли внутри этого элемента настоящая button кнопка
-					# Если есть, НЕ добавляем контейнер - пусть добавляется сама кнопка
-					has_button_child = False
-					for child in node.children:
-						child_tag = child.original_node.tag_name.lower() if child.original_node.tag_name else ''
-						if child_tag == 'button':
-							has_button_child = True
-							break
-					
-					# Если нет button дочернего элемента, и это не слишком большой контейнер
-					if not has_button_child:
-						text_length = len(element_text.strip())
-						# Если текст короткий (< 500 символов), это, вероятно, кнопка, а не контейнер
-						# Или если элемент кликабелен, это точно кнопка
-						if text_length < 500 or is_clickable:
-							should_make_interactive = True
 
 			# Add to selector map if element should be interactive
 			if should_make_interactive:
@@ -811,7 +771,7 @@ class DOMTreeSerializer:
 			return False
 		
 		# CRITICAL: Never exclude elements that Chrome considers clickable
-		# This ensures buttons like "Откликнуться" on hh.ru are always visible
+		# This ensures clickable buttons are always visible
 		if node.original_node.snapshot_node and node.original_node.snapshot_node.is_clickable:
 			return False
 		
@@ -1043,10 +1003,6 @@ class DOMTreeSerializer:
 					is_visible_for_serialization = node.original_node.snapshot_node and node.original_node.is_visible if node.original_node.snapshot_node else False
 					visibility_suffix = '|HIDDEN' if not is_visible_for_serialization else ''
 					line = f'{depth_str}{shadow_prefix}{new_prefix}{scroll_prefix}{node.original_node.backend_node_id}]{visibility_suffix}<{node.original_node.tag_name}'
-					# DIAGNOSTIC: Log when "Откликнуться" element gets serialized with visibility info
-					element_text = node.original_node.get_all_children_text() if hasattr(node.original_node, 'get_all_children_text') else ''
-					# Убрал избыточный лог - информация не критична для работы агента
-					pass
 				elif node.original_node.tag_name.upper() == 'IFRAME':
 					# Iframe element (not interactive)
 					line = f'{depth_str}{shadow_prefix}|IFRAME|<{node.original_node.tag_name}'

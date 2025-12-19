@@ -77,7 +77,7 @@ def _detect_sensitive_key_name(text: str, sensitive_data: dict[str, str | dict[s
 			for key, value in content.items():
 				if value and value == text:
 					return key
-		elif content:  # Старый формат: {key: value}
+		elif content:  # Формат: {key: value}
 			if content == text:
 				return domain_or_key
 
@@ -381,7 +381,7 @@ class Tools(Generic[Context]):
 				logger.debug(log_msg)
 
 				# Если указан press_enter=True, нажимаем Enter после ввода текста
-				# Это особенно полезно для полей поиска, где кнопка "Найти" может быть неточно определена
+				# Это особенно полезно для полей поиска, где кнопка поиска может быть неточно определена
 				if params.press_enter:
 					try:
 						enter_event = browser_session.event_bus.dispatch(SendKeysEvent(keys='Enter'))
@@ -406,8 +406,6 @@ class Tools(Generic[Context]):
 				error_msg = f'Не удалось ввести текст в элемент {params.index}: {e}'
 				return ActionResult(error=error_msg)
 
-		# File upload - УДАЛЕНО: не нужен для простых задач (почта, еда, вакансии)
-		# upload_file удален полностью
 
 		@self.registry.action(
 			"""LLM извлекает структурированные данные из markdown страницы. Используйте когда: на правильной странице, знаете что извлекать, не вызывали ранее на той же странице+запросе. Не может получить интерактивные элементы. Установите extract_links=True для адресов. Используйте start_from_char если предыдущее извлечение было обрезано для извлечения данных дальше по странице.""",
@@ -901,7 +899,6 @@ You will be given a query and the markdown of a webpage that has been filtered t
 				)
 			else:
 				# Обработка структурированного ответа об ошибке
-				# TODO: raise BrowserError instead of returning ActionResult
 				if 'short_term_memory' in selection_data and 'long_term_memory' in selection_data:
 					return ActionResult(
 						extracted_content=selection_data['short_term_memory'],
@@ -984,11 +981,6 @@ You will be given a query and the markdown of a webpage that has been filtered t
 				long_term_memory='Пользователь заполнил форму входа/регистрации в браузере',
 			)
 
-		# File System Actions - УДАЛЕНО: не нужны для простых задач (почта, еда, вакансии)
-		# write_file, read_file, replace_file удалены
-
-		# JavaScript execution - УДАЛЕНО: не нужен для простых задач
-		# evaluate и _validate_and_fix_javascript удалены
 
 	def _register_done_action(self, output_model: type[T] | None, display_files_in_done_text: bool = True):
 		if output_model is not None:
@@ -1133,7 +1125,7 @@ You will be given a query and the markdown of a webpage that has been filtered t
 	def __getattr__(self, name: str):
 		"""
 		Enable direct action calls like tools.navigate(url=..., browser_session=...).
-		This provides a simpler API for tests and direct usage while maintaining backward compatibility.
+		Предоставляет упрощенный API для тестов и прямого использования с сохранением обратной совместимости.
 		"""
 		# Check if this is a registered action
 		if name in self.registry.registry.actions:

@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 # ========== Logging Helper Functions ==========
-# These functions are used ONLY for formatting debug log output.
+# Функции используются только для форматирования отладочного вывода логов.
 # They do NOT affect the actual message content sent to the LLM.
 # All logging functions start with _log_ for easy identification.
 
@@ -50,8 +50,7 @@ def _log_format_message_line(message: BaseMessage, content: str, is_last_message
 		# Get emoji and token info
 		emoji = _log_get_message_emoji(message)
 		# token_str = str(message.metadata.tokens).rjust(4)
-		# TODO: fix the token count
-		token_str = '??? (TODO)'
+		token_str = '???'
 		prefix = f'{emoji}[{token_str}]: '
 
 		# Calculate available width (emoji=2 visual cols + [token]: =8 chars)
@@ -274,7 +273,7 @@ class MessageManager:
 				if current_page_url and match_url_with_domain_pattern(current_page_url, key, True):
 					placeholders.update(value.keys())
 			else:
-				# Old format: {key: value}
+				# Старый формат: {key: value}
 				placeholders.add(key)
 
 		if placeholders:
@@ -305,7 +304,7 @@ class MessageManager:
 		# Clear contextual messages from previous steps to prevent accumulation
 		self.state.history.context_messages.clear()
 
-		# First, update the agent history items with the latest step results
+		# Сначала обновляем элементы истории агента с результатами последнего шага
 		self._update_agent_history_description(model_output, result, step_info)
 
 		# Use the passed sensitive_data parameter, falling back to instance variable
@@ -376,8 +375,7 @@ class MessageManager:
 		self._set_message_with_type(state_message, 'state')
 
 	def _log_history_lines(self) -> str:
-		"""Generate a formatted log string of message history for debugging / printing to terminal"""
-		# TODO: fix logging
+		"""Генерация форматированной строки лога истории сообщений для вывода в терминал"""
 
 		# try:
 		# 	total_input_tokens = 0
@@ -416,7 +414,7 @@ class MessageManager:
 	def get_messages(self) -> list[BaseMessage]:
 		"""Get current message list, potentially trimmed to max tokens"""
 
-		# Log message history for debugging
+		# Логирование истории сообщений
 		logger.debug(self._log_history_lines())
 		self.last_input_messages = self.state.history.get_messages()
 		return self.last_input_messages
@@ -444,7 +442,7 @@ class MessageManager:
 			if not self.sensitive_data:
 				return value
 
-			# Collect all sensitive values, immediately converting old format to new format
+			# Сбор всех чувствительных значений с конвертацией старого формата в новый
 			sensitive_values: dict[str, str] = {}
 
 			# Process all sensitive data entries
@@ -454,7 +452,7 @@ class MessageManager:
 					for key, val in content.items():
 						if val:  # Skip empty values
 							sensitive_values[key] = val
-				elif content:  # Old format: {key: value} - convert to new format internally
+				elif content:  # Старый формат: {key: value} - конвертация в новый формат
 					# We treat this as if it was {'http*://*': {key_or_domain: content}}
 					sensitive_values[key_or_domain] = content
 

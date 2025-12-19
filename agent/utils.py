@@ -715,7 +715,7 @@ def get_agent_version() -> str:
 	except Exception as e:
 		logger.debug(f'Ошибка определения версии проекта: {type(e).__name__}: {e}')
 		return 'unknown'
-	return 'unknown'
+		return 'unknown'
 
 
 async def check_latest_agent_version() -> str | None:
@@ -837,10 +837,11 @@ def create_task_with_error_handling(
 			if exc is not None:
 				task_name = t.get_name() if hasattr(t, 'get_name') else 'unnamed'
 				if suppress_exceptions:
-					log.error(f'Exception in background task [{task_name}]: {type(exc).__name__}: {exc}', exc_info=exc)
+					# Фоновые задачи могут падать - это ожидаемо (например, когда страница перезагружается)
+					log.debug(f'Exception in background task [{task_name}]: {type(exc).__name__}: {exc}', exc_info=exc)
 				else:
-					# Log at warning level then mark for re-raising
-					log.warning(
+					# Log at debug level then mark for re-raising (это ожидаемо для фоновых задач)
+					log.debug(
 						f'Exception in background task [{task_name}]: {type(exc).__name__}: {exc}',
 						exc_info=exc,
 					)
@@ -851,7 +852,8 @@ def create_task_with_error_handling(
 		except Exception as e:
 			# Catch any other exception during exception handling (e.g., t.exception() itself failing)
 			task_name = t.get_name() if hasattr(t, 'get_name') else 'unnamed'
-			log.error(f'Error handling exception in task [{task_name}]: {type(e).__name__}: {e}')
+			# Логируем как debug, т.к. это технические ошибки фоновых задач
+			log.debug(f'Error handling exception in task [{task_name}]: {type(e).__name__}: {e}')
 
 		# Re-raise outside the try-except block so it propagates to the event loop
 		if exc_to_raise is not None:

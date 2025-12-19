@@ -322,12 +322,12 @@ class ChatOpenAI(BaseChatModel):
 					try:
 						json_str = extract_json_from_text(content)
 						parsed = output_format.model_validate_json(json_str)
-						# Если извлечение успешно, логируем как предупреждение (не ошибка)
-						logger.warning(f'[DEBUG] LLM returned JSON wrapped in markdown, extracted successfully')
+						# Если извлечение успешно, логируем как debug (это нормальная ситуация)
+						logger.debug(f'LLM returned JSON wrapped in markdown, extracted successfully')
 					except Exception as extract_error:
-						# Если и извлечение не помогло, это реальная ошибка
-						logger.error(f'[DEBUG] LLM returned invalid JSON. Full response: {content[:500]}...')
-						logger.error(f'[DEBUG] Parse error: {str(extract_error)[:500]}')
+						# Если и извлечение не помогло, логируем как debug (модель может вернуть невалидный JSON иногда)
+						logger.debug(f'LLM returned invalid JSON. Full response: {content[:500]}...')
+						logger.debug(f'Parse error: {str(extract_error)[:500]}')
 						error_msg = str(extract_error)
 						# Обрезаем огромные пасты валидации до разумного размера
 						if len(error_msg) > 200:

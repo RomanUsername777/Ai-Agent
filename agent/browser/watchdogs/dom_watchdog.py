@@ -396,7 +396,7 @@ class DOMWatchdog(BaseWatchdog):
 					content = await dom_task
 					self.logger.debug('🔍 DOMWatchdog.on_BrowserStateRequestEvent: ✅ DOM tree build completed')
 				except Exception as e:
-					self.logger.warning(f'🔍 DOMWatchdog.on_BrowserStateRequestEvent: DOM build failed: {e}, using minimal state')
+					self.logger.debug(f'🔍 DOMWatchdog.on_BrowserStateRequestEvent: DOM build failed: {e}, using minimal state')
 					content = SerializedDOMState(_root=None, selector_map={})
 			else:
 				content = SerializedDOMState(_root=None, selector_map={})
@@ -670,7 +670,8 @@ class DOMWatchdog(BaseWatchdog):
 			return self.current_dom_state
 
 		except Exception as e:
-			self.logger.error(f'Failed to build DOM tree without highlights: {e}')
+			# Это ожидаемо когда страница перезагружается или CDP запросы не успевают
+			self.logger.debug(f'Failed to build DOM tree without highlights: {e}')
 			self.event_bus.dispatch(
 				BrowserErrorEvent(
 					error_type='DOMBuildFailed',

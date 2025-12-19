@@ -1,8 +1,11 @@
 # @file purpose: Serializes enhanced DOM trees to string format for LLM consumption
 
+import logging
 from typing import Any
 
 from agent.dom.serializer.clickable_elements import ClickableElementDetector
+
+logger = logging.getLogger(__name__)
 from agent.dom.serializer.paint_order import PaintOrderRemover
 from agent.dom.utils import cap_text_length
 from agent.dom.views import (
@@ -114,6 +117,7 @@ class DOMTreeSerializer:
 		end_step1 = time.time()
 		self.timing_info['create_simplified_tree'] = end_step1 - start_step1
 
+
 		# Step 2: Remove elements based on paint order
 		start_step3 = time.time()
 		if self.paint_order_filtering and simplified_tree:
@@ -126,6 +130,7 @@ class DOMTreeSerializer:
 		optimized_tree = self._optimize_tree(simplified_tree)
 		end_step2 = time.time()
 		self.timing_info['optimize_tree'] = end_step2 - start_step2
+
 
 		# Step 3: Apply bounding box filtering (NEW)
 		if self.enable_bbox_filtering and optimized_tree:
@@ -141,6 +146,7 @@ class DOMTreeSerializer:
 		self._assign_interactive_indices_and_mark_new_nodes(filtered_tree)
 		end_step4 = time.time()
 		self.timing_info['assign_interactive_indices'] = end_step4 - start_step4
+
 
 		end_total = time.time()
 		self.timing_info['serialize_accessible_elements_total'] = end_total - start_total
@@ -510,6 +516,13 @@ class DOMTreeSerializer:
 			if not is_visible and is_file_input:
 				is_visible = True  # Force visibility for file inputs
 
+			# CRITICAL: If Chrome considers element clickable (is_clickable from DOMSnapshot),
+			# include it even if not visible. This is important for modal dialogs,
+			# overlays, and React portals that may not pass visibility checks.
+			is_clickable = node.snapshot_node and node.snapshot_node.is_clickable
+			if not is_visible and is_clickable:
+				is_visible = True  # Force visibility for clickable elements
+
 			# Include if visible, scrollable, has children, or is shadow host
 			if is_visible or is_scrollable or has_shadow_content or is_shadow_host:
 				simplified = SimplifiedNode(original_node=node, children=[], is_shadow_host=is_shadow_host)
@@ -531,6 +544,8 @@ class DOMTreeSerializer:
 				# Return if meaningful or has meaningful children
 				if is_visible or is_scrollable or simplified.children:
 					return simplified
+			else:
+				return None
 		elif node.node_type == NodeType.TEXT_NODE:
 			# Include meaningful text nodes
 			is_visible = node.snapshot_node and node.is_visible
@@ -555,6 +570,9 @@ class DOMTreeSerializer:
 
 		# Keep meaningful nodes
 		is_visible = node.original_node.snapshot_node and node.original_node.is_visible
+		
+		# CRITICAL: Keep elements Chrome considers clickable (from DOMSnapshot)
+		is_clickable = node.original_node.snapshot_node and node.original_node.snapshot_node.is_clickable
 
 		# EXCEPTION: File inputs are often hidden with opacity:0 but are still functional
 		is_file_input = (
@@ -563,13 +581,31 @@ class DOMTreeSerializer:
 			and node.original_node.attributes
 			and node.original_node.attributes.get('type') == 'file'
 		)
+		
+		# КРИТИЧЕСКИ ВАЖНО: Проверяем, содержит ли элемент текст "Откликнуться"
+		# Если да, всегда оставляем его в дереве, даже если он не видим/не кликабелен
+		# Это нужно для того, чтобы кнопка "Откликнуться" попадала в selector_map
+		has_otkliknitesya_text = False
+		if hasattr(node.original_node, 'get_all_children_text'):
+			try:
+				element_text = node.original_node.get_all_children_text()
+				if element_text and 'Откликнуться' in element_text:
+					# Проверяем, что это не слишком большой контейнер (не body, не огромный div)
+					text_length = len(element_text.strip())
+					# Если текст короткий (< 1000 символов) или элемент кликабелен, это, вероятно, кнопка, а не контейнер
+					if text_length < 1000 or is_clickable:
+						has_otkliknitesya_text = True
+			except:
+				pass
 
 		if (
 			is_visible  # Keep all visible nodes
+			or is_clickable  # Keep all clickable nodes (Chrome DOMSnapshot)
 			or node.original_node.is_actually_scrollable
 			or node.original_node.node_type == NodeType.TEXT_NODE
 			or node.children
 			or is_file_input  # Keep file inputs even if not visible
+			or has_otkliknitesya_text  # КРИТИЧНО: всегда оставляем элементы с текстом "Откликнуться"
 		):
 			return node
 
@@ -579,9 +615,10 @@ class DOMTreeSerializer:
 		"""Recursively collect interactive elements that are also visible."""
 		is_interactive = self._is_interactive_cached(node.original_node)
 		is_visible = node.original_node.snapshot_node and node.original_node.is_visible
+		is_clickable = node.original_node.snapshot_node and node.original_node.snapshot_node.is_clickable
 
-		# Only collect elements that are both interactive AND visible
-		if is_interactive and is_visible:
+		# Collect elements that are interactive AND (visible OR clickable)
+		if is_interactive and (is_visible or is_clickable):
 			elements.append(node)
 
 		for child in node.children:
@@ -605,12 +642,22 @@ class DOMTreeSerializer:
 		if not node:
 			return
 
-		# Skip assigning index to excluded nodes, or ignored by paint order
-		if not node.excluded_by_parent and not node.ignored_by_paint_order:
+		# КРИТИЧНО: Для настоящих button элементов НЕ пропускаем их даже если ignored_by_paint_order=True
+		tag = node.original_node.tag_name.lower() if node.original_node.tag_name else ''
+		has_role_button = node.original_node.attributes and node.original_node.attributes.get('role') == 'button'
+		is_real_button = tag == 'button' or (tag == 'a' and has_role_button)
+		# Это нужно для кнопок, которые могут быть перекрыты другими элементами, но все равно должны быть кликабельны
+		# Skip assigning index to excluded nodes, or ignored by paint order (НО НЕ для настоящих button элементов!)
+		should_process = not node.excluded_by_parent and (not node.ignored_by_paint_order or is_real_button)
+		
+		if should_process:
 			# Regular interactive element assignment (including enhanced compound controls)
 			is_interactive_assign = self._is_interactive_cached(node.original_node)
 			is_visible = node.original_node.snapshot_node and node.original_node.is_visible
 			is_scrollable = node.original_node.is_actually_scrollable
+			# CRITICAL: Chrome's is_clickable from DOMSnapshot
+			is_clickable = node.original_node.snapshot_node and node.original_node.snapshot_node.is_clickable
+			
 
 			# EXCEPTION: File inputs are often hidden with opacity:0 but are still functional
 			# Bootstrap and other frameworks use this pattern with custom-styled file pickers
@@ -621,9 +668,16 @@ class DOMTreeSerializer:
 				and node.original_node.attributes.get('type') == 'file'
 			)
 
-			# Check if scrollable container should be made interactive
+				# Check if scrollable container should be made interactive
 			# For scrollable elements, ONLY make them interactive if they have no interactive descendants
 			should_make_interactive = False
+			
+			# Получаем информацию о теге и атрибутах для проверки button элементов
+			tag = node.original_node.tag_name.lower() if node.original_node.tag_name else ''
+			has_role_button = node.original_node.attributes and node.original_node.attributes.get('role') == 'button'
+			
+			is_button_element = tag == 'button' or (tag == 'a' and has_role_button) or has_role_button
+			
 			if is_scrollable:
 				# For scrollable elements, check if they have interactive children
 				has_interactive_desc = self._has_interactive_descendants(node)
@@ -631,9 +685,46 @@ class DOMTreeSerializer:
 				# Only make scrollable container interactive if it has NO interactive descendants
 				if not has_interactive_desc:
 					should_make_interactive = True
-			elif is_interactive_assign and (is_visible or is_file_input):
-				# Non-scrollable interactive elements: make interactive if visible (or file input)
+			elif is_interactive_assign and (is_visible or is_file_input or is_clickable):
+				# Non-scrollable interactive elements: make interactive if visible, file input, or clickable
 				should_make_interactive = True
+			elif is_clickable:
+				# CRITICAL: If Chrome considers element clickable, ALWAYS make it interactive
+				# This handles buttons in modals, overlays, and any element Chrome deems clickable
+				# We trust Chrome's is_clickable detection over our heuristics
+				should_make_interactive = True
+			# CRITICAL: For button and button-like elements, include them even if not clickable or visible
+			# Buttons are important for forms even when disabled - they should be accessible to the agent
+			# This is especially important for form submission buttons that may be disabled until all fields are filled
+			elif tag == 'button' or (tag == 'a' and has_role_button) or has_role_button:
+				# ВАЖНО: включаем ВСЕ button элементы в selector_map, даже если они disabled или не видимы
+				# Это критично для форм, где кнопка может быть disabled до заполнения всех полей
+				# Не проверяем is_visible или is_clickable - disabled кнопки все равно должны быть доступны агенту
+				should_make_interactive = True
+			
+			# КРИТИЧЕСКИ ВАЖНО: Если элемент содержит текст "Откликнуться", включаем его в selector_map
+			# даже если он не является стандартным button элементом (может быть div с обработчиком клика)
+			# Это нужно для случаев, когда кнопка "Откликнуться" реализована как div, а не button
+			# НО: НЕ добавляем контейнер, если внутри него есть настоящая button кнопка!
+			if not should_make_interactive:
+				element_text = node.original_node.get_all_children_text() if hasattr(node.original_node, 'get_all_children_text') else ''
+				if element_text and 'Откликнуться' in element_text:
+					# КРИТИЧНО: Проверяем, есть ли внутри этого элемента настоящая button кнопка
+					# Если есть, НЕ добавляем контейнер - пусть добавляется сама кнопка
+					has_button_child = False
+					for child in node.children:
+						child_tag = child.original_node.tag_name.lower() if child.original_node.tag_name else ''
+						if child_tag == 'button':
+							has_button_child = True
+							break
+					
+					# Если нет button дочернего элемента, и это не слишком большой контейнер
+					if not has_button_child:
+						text_length = len(element_text.strip())
+						# Если текст короткий (< 500 символов), это, вероятно, кнопка, а не контейнер
+						# Или если элемент кликабелен, это точно кнопка
+						if text_length < 500 or is_clickable:
+							should_make_interactive = True
 
 			# Add to selector map if element should be interactive
 			if should_make_interactive:
@@ -642,7 +733,7 @@ class DOMTreeSerializer:
 				# Store backend_node_id in selector map (model outputs backend_node_id)
 				self._selector_map[node.original_node.backend_node_id] = node.original_node
 				self._interactive_counter += 1
-
+			else:
 				# Mark compound components as new for visibility
 				if node.is_compound_component:
 					node.is_new = True
@@ -717,6 +808,18 @@ class DOMTreeSerializer:
 
 		# Never exclude text nodes - we always want to preserve text content
 		if node.original_node.node_type == NodeType.TEXT_NODE:
+			return False
+		
+		# CRITICAL: Never exclude elements that Chrome considers clickable
+		# This ensures buttons like "Откликнуться" on hh.ru are always visible
+		if node.original_node.snapshot_node and node.original_node.snapshot_node.is_clickable:
+			return False
+		
+		# CRITICAL: Never exclude interactive elements (links, buttons)
+		# These are needed for agent to click on them
+		tag = node.original_node.tag_name.lower() if node.original_node.tag_name else ''
+		role = node.original_node.attributes.get('role', '') if node.original_node.attributes else ''
+		if tag in ('a', 'button') or role == 'button':
 			return False
 
 		# Get child bounds
@@ -866,6 +969,8 @@ class DOMTreeSerializer:
 			# Add element if clickable, scrollable, or iframe
 			is_any_scrollable = node.original_node.is_actually_scrollable or node.original_node.is_scrollable
 			should_show_scroll = node.original_node.should_show_scroll_info
+			
+			
 			if (
 				node.is_interactive
 				or is_any_scrollable
@@ -934,7 +1039,14 @@ class DOMTreeSerializer:
 					# Clickable (and possibly scrollable) - show backend_node_id
 					new_prefix = '*' if node.is_new else ''
 					scroll_prefix = '|SCROLL[' if should_show_scroll else '['
-					line = f'{depth_str}{shadow_prefix}{new_prefix}{scroll_prefix}{node.original_node.backend_node_id}]<{node.original_node.tag_name}'
+					# Add visibility indicator for non-visible but clickable elements
+					is_visible_for_serialization = node.original_node.snapshot_node and node.original_node.is_visible if node.original_node.snapshot_node else False
+					visibility_suffix = '|HIDDEN' if not is_visible_for_serialization else ''
+					line = f'{depth_str}{shadow_prefix}{new_prefix}{scroll_prefix}{node.original_node.backend_node_id}]{visibility_suffix}<{node.original_node.tag_name}'
+					# DIAGNOSTIC: Log when "Откликнуться" element gets serialized with visibility info
+					element_text = node.original_node.get_all_children_text() if hasattr(node.original_node, 'get_all_children_text') else ''
+					# Убрал избыточный лог - информация не критична для работы агента
+					pass
 				elif node.original_node.tag_name.upper() == 'IFRAME':
 					# Iframe element (not interactive)
 					line = f'{depth_str}{shadow_prefix}|IFRAME|<{node.original_node.tag_name}'
@@ -956,6 +1068,10 @@ class DOMTreeSerializer:
 						line += f' ({scroll_info_text})'
 
 				formatted_text.append(line)
+			else:
+				# Element is NOT interactive, not scrollable, not iframe - will NOT be serialized
+				# Skip logging for non-serialized elements (too verbose)
+				pass
 
 		elif node.original_node.node_type == NodeType.DOCUMENT_FRAGMENT_NODE:
 			# Shadow DOM representation - show clearly to LLM

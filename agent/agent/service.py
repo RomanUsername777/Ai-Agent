@@ -939,11 +939,13 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		log_level = logging.ERROR if is_final_failure else logging.WARNING
 
 		if 'Could not parse response' in error_msg or 'tool_use_failed' in error_msg or 'Failed to parse JSON' in error_msg:
-			# Упрощаем логирование ошибок парсинга JSON - не выводим огромные пасты валидации
+			# Упрощаем логирование ошибок парсинга JSON - логируем как debug (модель может иногда возвращать невалидный JSON)
 			# Обрезаем сообщение об ошибке до разумного размера
 			short_error = error_msg[:300] + '...' if len(error_msg) > 300 else error_msg
-			self.logger.log(log_level, f'Model: {self.llm.model} failed to parse response')
-			self.logger.log(log_level, f'{prefix}{short_error}')
+			self.logger.debug(f'Model: {self.llm.model} failed to parse response: {short_error}')
+			# Все равно показываем ошибку пользователю, но только если это финальная ошибка
+			if is_final_failure:
+				self.logger.log(log_level, f'{prefix}{short_error}')
 		else:
 			self.logger.log(log_level, f'{prefix}{error_msg}')
 
@@ -2198,43 +2200,45 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 							action = captcha_action
 							action_name = 'request_user_input'
 							action_data = {'request_user_input': {'prompt': 'Пожалуйста, решите капчу в браузере и введите "готово" (или "done") когда закончите'}}
+						
+						# Если достигнут лимит неудачных попыток клика в модальном окне, блокируем действие и запрашиваем помощь
+						elif self.state.modal_click_failures >= 3 and action_name == 'click':
+							# Проверяем, что модальное окно действительно открыто
+							if browser_state and self.email_subagent.detect_dialog(browser_state):
+								self.logger.warning(
+									f'🛑 Блокирую действие {action_name} - достигнут лимит неудачных попыток клика в модальном окне (3). '
+									'Запрашиваю помощь пользователя.'
+								)
+								# Заменяем действие на request_user_input
+								from agent.tools.views import RequestUserInputAction
+								from agent.tools.registry.views import ActionModel
+								from pydantic import create_model, Field
+								
+								RequestUserInputActionModel = create_model(
+									'RequestUserInputActionModel',
+									__base__=ActionModel,
+									request_user_input=(RequestUserInputAction, Field(...))
+								)
+								
+								modal_action = RequestUserInputActionModel(
+									request_user_input=RequestUserInputAction(
+										prompt='Не удалось найти кнопку отправки в модальном окне после 3 попыток. Пожалуйста, нажмите кнопку отправки формы в модальном окне вручную, затем введите "готово" (или "done") когда форма будет отправлена.'
+									)
+								)
+								action = modal_action
+								action_name = 'request_user_input'
+								action_data = {'request_user_input': {'prompt': 'Не удалось найти кнопку отправки в модальном окне после 3 попыток. Пожалуйста, нажмите кнопку отправки формы в модальном окне вручную, затем введите "готово" (или "done") когда форма будет отправлена.'}}
+								# Сбрасываем счетчик после запроса помощи
+								self.state.modal_click_failures = 0
 
 				# Используем субагента для почты для обработки почтовых специфичных ситуаций
 				if self.browser_session is not None:
 					browser_state = self.browser_session._cached_browser_state_summary
 					if browser_state:
-						# Автоматически закрываем диалоги на всех страницах (не только почтовых)
+						# Информируем агента о наличии диалога, но НЕ закрываем автоматически
+						# Агент сам решает - работать с диалогом (например, форма отклика) или закрыть его
 						if self.email_subagent.detect_dialog(browser_state):
-							self.logger.warning('⚠️ Обнаружен открытый диалог - автоматически закрываю через Escape')
-							try:
-								from agent.tools.views import SendKeysAction
-								from agent.tools.registry.views import ActionModel
-								from pydantic import create_model, Field
-								
-								# Создаем действие send_keys с Escape
-								SendKeysActionModel = create_model(
-									'SendKeysActionModel',
-									__base__=ActionModel,
-									send_keys=(SendKeysAction, Field(...))
-								)
-								
-								escape_action = SendKeysActionModel(
-									send_keys=SendKeysAction(keys='Escape')
-								)
-								
-								# Выполняем действие закрытия диалога
-								await self.tools.act(
-									action=escape_action,
-									browser_session=self.browser_session,
-									file_system=self.file_system,
-									page_extraction_llm=self.settings.page_extraction_llm,
-									sensitive_data=self.sensitive_data,
-									available_file_paths=self.available_file_paths,
-								)
-								self.logger.info('✅ Диалог закрыт через Escape')
-								await asyncio.sleep(0.5)  # Небольшая задержка после закрытия диалога
-							except Exception as e:
-								self.logger.error(f'❌ Не удалось автоматически закрыть диалог: {e}')
+							self.logger.info('ℹ️ Обнаружен открытый диалог - агент должен решить: работать с ним или закрыть через Escape')
 						
 						# Логируем метаданные письма только для почтовых клиентов (для отладки)
 						if self.email_subagent.is_email_client(browser_state):
@@ -2279,8 +2283,8 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				# Это критично для SPA-приложений (например, почтовые клиенты), где клик может менять содержимое без изменения URL
 				if action_name in ['click', 'navigate']:
 					# Увеличиваем задержку для SPA приложений, чтобы дать время DOM обновиться
-					# Для клика в SPA нужно больше времени (2 секунды), так как содержимое загружается асинхронно
-					wait_time = 2.0 if action_name == 'click' else 0.5  # Увеличено до 2 секунд для клика в SPA
+					# Страницы вакансий на hh.ru и другие SPA требуют времени для загрузки контента
+					wait_time = 2.0  # Одинаковое время для click и navigate
 					self.logger.info(f'⏳ Ожидание {wait_time}s после {action_name} для обновления DOM (SPA)')
 					await asyncio.sleep(wait_time)
 					
@@ -2289,6 +2293,53 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 					if self.browser_session and self.browser_session._dom_watchdog:
 						self.browser_session._dom_watchdog.clear_cache()
 						self.logger.info(f'🔄 Кэш DOM очищен после {action_name} - следующее получение browser_state будет свежим')
+					
+					# Проверяем, осталось ли модальное окно открытым после клика (для отслеживания неудачных попыток)
+					if action_name == 'click' and self.browser_session:
+						# Получаем свежий browser_state после очистки кэша
+						await asyncio.sleep(0.5)  # Небольшая задержка для обновления DOM
+						fresh_browser_state = self.browser_session._cached_browser_state_summary
+						if fresh_browser_state and self.email_subagent.detect_dialog(fresh_browser_state):
+							# Модальное окно все еще открыто после клика - увеличиваем счетчик
+							self.state.modal_click_failures += 1
+							self.logger.warning(
+								f'⚠️ Модальное окно все еще открыто после клика. Счетчик неудачных попыток: {self.state.modal_click_failures}/3'
+							)
+							if self.state.modal_click_failures >= 3:
+								self.logger.warning(
+									'🛑 Достигнут лимит неудачных попыток клика в модальном окне (3). '
+									'В следующем шаге будет запрошена помощь пользователя.'
+								)
+						else:
+							# Модальное окно закрыто - сбрасываем счетчик
+							if self.state.modal_click_failures > 0:
+								self.logger.info(f'✅ Модальное окно закрыто. Счетчик неудачных попыток сброшен с {self.state.modal_click_failures} до 0')
+								self.state.modal_click_failures = 0
+					
+					# После request_user_input проверяем, закрыто ли модальное окно (пользователь мог нажать кнопку)
+					if action_name == 'request_user_input' and self.browser_session:
+						await asyncio.sleep(0.5)  # Небольшая задержка для обновления DOM
+						fresh_browser_state = self.browser_session._cached_browser_state_summary
+						if fresh_browser_state:
+							if not self.email_subagent.detect_dialog(fresh_browser_state):
+								# Модальное окно закрыто после request_user_input - сбрасываем счетчик
+								if self.state.modal_click_failures > 0:
+									self.logger.info(f'✅ Модальное окно закрыто после request_user_input. Счетчик неудачных попыток сброшен с {self.state.modal_click_failures} до 0')
+									self.state.modal_click_failures = 0
+								
+								# КРИТИЧЕСКИ ВАЖНО: Если модальное окно закрыто после request_user_input,
+								# это означает, что пользователь выполнил действие (например, нажал кнопку отправки).
+								# В этом случае задача уже выполнена - модифицируем result, чтобы агент завершил задачу.
+								# Проверяем, что пользователь ответил "done" или "готово"
+								if result.extracted_content and ('подтвердил' in result.extracted_content.lower() or 'выполнено' in result.extracted_content.lower()):
+									self.logger.info('✅ Модальное окно закрыто после request_user_input с подтверждением пользователя. Задача выполнена пользователем - завершаем выполнение.')
+									# Модифицируем result, чтобы агент понял, что задача выполнена
+									result.is_done = True
+									result.success = True
+									result.long_term_memory = 'Пользователь успешно выполнил действие (например, нажал кнопку отправки отклика). Задача выполнена.'
+									result.extracted_content = 'Задача выполнена пользователем. Модальное окно закрыто, действие успешно завершено.'
+									# Прерываем выполнение дальнейших действий в этом шаге
+									break
 
 				if result.error:
 					await self._demo_mode_log(

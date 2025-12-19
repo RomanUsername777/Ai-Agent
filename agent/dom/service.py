@@ -236,12 +236,18 @@ class DomService:
 			ax_tree_requests.append(ax_tree_request)
 
 		# Wait for all requests to complete
-		ax_trees = await asyncio.gather(*ax_tree_requests)
+		# Используем return_exceptions=True чтобы не падать если фрейм исчез (это ожидаемо при перезагрузке страницы)
+		ax_trees = await asyncio.gather(*ax_tree_requests, return_exceptions=True)
 
 		# Merge all AX nodes into a single array
 		merged_nodes: list[AXNode] = []
-		for ax_tree in ax_trees:
-			merged_nodes.extend(ax_tree['nodes'])
+		for idx, ax_tree in enumerate(ax_trees):
+			if isinstance(ax_tree, Exception):
+				# Логируем как debug, т.к. это ожидаемо когда страница перезагружается
+				self.logger.debug(f'Failed to get AX tree for frame {all_frame_ids[idx] if idx < len(all_frame_ids) else "unknown"}: {ax_tree}')
+				continue
+			if ax_tree and 'nodes' in ax_tree:
+				merged_nodes.extend(ax_tree['nodes'])
 
 		return {'nodes': merged_nodes}
 
@@ -366,10 +372,11 @@ class DomService:
 				try:
 					results[key] = task.result()
 				except Exception as e:
-					self.logger.warning(f'CDP request {key} failed with exception: {e}')
+					# Это ожидаемо когда страница перезагружается или фрейм исчезает
+					self.logger.debug(f'CDP request {key} failed with exception: {e}')
 					failed.append(key)
 			else:
-				self.logger.warning(f'CDP request {key} timed out')
+				self.logger.debug(f'CDP request {key} timed out')
 				failed.append(key)
 
 		# If any required tasks failed, raise an exception

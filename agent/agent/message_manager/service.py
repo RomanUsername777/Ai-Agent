@@ -28,12 +28,12 @@ logger = logging.getLogger(__name__)
 
 # ========== Logging Helper Functions ==========
 # Функции используются только для форматирования отладочного вывода логов.
-# They do NOT affect the actual message content sent to the LLM.
-# All logging functions start with _log_ for easy identification.
+# Они НЕ влияют на фактическое содержимое сообщений, отправляемых в LLM.
+# Все функции логирования начинаются с _log_ для удобной идентификации.
 
 
 def _log_get_message_emoji(message: BaseMessage) -> str:
-	"""Get emoji for a message type - used only for logging display"""
+	"""Получение эмодзи для типа сообщения - используется только для отображения в логах"""
 	emoji_map = {
 		'UserMessage': '💬',
 		'SystemMessage': '🧠',
@@ -43,48 +43,48 @@ def _log_get_message_emoji(message: BaseMessage) -> str:
 
 
 def _log_format_message_line(message: BaseMessage, content: str, is_last_message: bool, terminal_width: int) -> list[str]:
-	"""Format a single message for logging display"""
+	"""Форматирование одного сообщения для отображения в логах"""
 	try:
 		lines = []
 
-		# Get emoji and token info
+		# Получение эмодзи и информации о токенах
 		emoji = _log_get_message_emoji(message)
 		# token_str = str(message.metadata.tokens).rjust(4)
 		token_str = '???'
 		prefix = f'{emoji}[{token_str}]: '
 
-		# Calculate available width (emoji=2 visual cols + [token]: =8 chars)
+		# Расчет доступной ширины (эмодзи=2 визуальных колонки + [token]: =8 символов)
 		content_width = terminal_width - 10
 
-		# Handle last message wrapping
+		# Обработка переноса последнего сообщения
 		if is_last_message and len(content) > content_width:
-			# Find a good break point
+			# Поиск хорошей точки разрыва
 			break_point = content.rfind(' ', 0, content_width)
-			if break_point > content_width * 0.7:  # Keep at least 70% of line
+			if break_point > content_width * 0.7:  # Сохранить хотя бы 70% строки
 				first_line = content[:break_point]
 				rest = content[break_point + 1 :]
 			else:
-				# No good break point, just truncate
+				# Нет хорошей точки разрыва, просто обрезаем
 				first_line = content[:content_width]
 				rest = content[content_width:]
 
 			lines.append(prefix + first_line)
 
-			# Second line with 10-space indent
+			# Вторая строка с отступом в 10 пробелов
 			if rest:
 				if len(rest) > terminal_width - 10:
 					rest = rest[: terminal_width - 10]
 				lines.append(' ' * 10 + rest)
 		else:
-			# Single line - truncate if needed
+			# Одна строка - обрезаем при необходимости
 			if len(content) > content_width:
 				content = content[:content_width]
 			lines.append(prefix + content)
 
 		return lines
 	except Exception as e:
-		logger.warning(f'Failed to format message line for logging: {e}')
-		# Return a simple fallback line
+		logger.warning(f'Не удалось отформатировать строку сообщения для логирования: {e}')
+		# Возврат простой резервной строки
 		return ['❓[   ?]: [Error formatting message]']
 
 
@@ -125,40 +125,40 @@ class MessageManager:
 
 		assert max_history_items is None or max_history_items > 5, 'max_history_items must be None or greater than 5'
 
-		# Store settings as direct attributes instead of in a settings object
+		# Хранение настроек как прямых атрибутов вместо объекта настроек
 		self.include_attributes = include_attributes or []
 		self.sensitive_data = sensitive_data
 		self.last_input_messages = []
 		self.last_state_message_text: str | None = None
-		# Only initialize messages if state is empty
+		# Инициализация сообщений только если состояние пустое
 		if len(self.state.history.get_messages()) == 0:
 			self._set_message_with_type(self.system_prompt, 'system')
 
 	@property
 	def agent_history_description(self) -> str:
-		"""Build agent history description from list of items, respecting max_history_items limit"""
+		"""Построение описания истории агента из списка элементов с учетом лимита max_history_items"""
 		if self.max_history_items is None:
-			# Include all items
+			# Включить все элементы
 			return '\n'.join(item.to_string() for item in self.state.agent_history_items)
 
 		total_items = len(self.state.agent_history_items)
 
-		# If we have fewer items than the limit, just return all items
+		# Если элементов меньше лимита, возвращаем все элементы
 		if total_items <= self.max_history_items:
 			return '\n'.join(item.to_string() for item in self.state.agent_history_items)
 
-		# We have more items than the limit, so we need to omit some
+		# Элементов больше лимита, нужно пропустить некоторые
 		omitted_count = total_items - self.max_history_items
 
-		# Show first item + omitted message + most recent (max_history_items - 1) items
-		# The omitted message doesn't count against the limit, only real history items do
-		recent_items_count = self.max_history_items - 1  # -1 for first item
+		# Показать первый элемент + сообщение о пропуске + самые последние (max_history_items - 1) элементов
+		# Сообщение о пропуске не учитывается в лимите, учитываются только реальные элементы истории
+		recent_items_count = self.max_history_items - 1  # -1 для первого элемента
 
 		items_to_include = [
-			self.state.agent_history_items[0].to_string(),  # Keep first item (initialization)
+			self.state.agent_history_items[0].to_string(),  # Сохранить первый элемент (инициализация)
 			f'<sys>[... {omitted_count} previous steps omitted...]</sys>',
 		]
-		# Add most recent items
+		# Добавить самые последние элементы
 		items_to_include.extend([item.to_string() for item in self.state.agent_history_items[-recent_items_count:]])
 
 		return '\n'.join(items_to_include)
@@ -184,7 +184,7 @@ class MessageManager:
 		step_number = step_info.step_number if step_info else None
 
 		self.state.read_state_description = ''
-		self.state.read_state_images = []  # Clear images from previous step
+		self.state.read_state_images = []  # Очистка изображений из предыдущего шага
 
 		action_results = ''
 		result_len = len(result)
@@ -198,7 +198,7 @@ class MessageManager:
 				read_state_idx += 1
 				logger.debug(f'Added extracted_content to read_state_description: {action_result.extracted_content}')
 
-			# Store images for one-time inclusion in the next message
+			# Сохранение изображений для одноразового включения в следующее сообщение
 			if action_result.images:
 				self.state.read_state_images.extend(action_result.images)
 				logger.debug(f'Added {len(action_result.images)} image(s) to read_state_images')
@@ -218,7 +218,7 @@ class MessageManager:
 				action_results += f'{error_text}\n'
 				logger.debug(f'Added error to action_results: {error_text}')
 
-		# Simple 60k character limit for read_state_description
+		# Простое ограничение в 60k символов для read_state_description
 		MAX_CONTENT_SIZE = 60000
 		if len(self.state.read_state_description) > MAX_CONTENT_SIZE:
 			self.state.read_state_description = (
@@ -232,21 +232,21 @@ class MessageManager:
 			action_results = f'Result\n{action_results}'
 		action_results = action_results.strip('\n') if action_results else None
 
-		# Simple 60k character limit for action_results
+		# Простое ограничение в 60k символов для action_results
 		if action_results and len(action_results) > MAX_CONTENT_SIZE:
 			action_results = action_results[:MAX_CONTENT_SIZE] + '\n... [Content truncated at 60k characters]'
 			logger.debug(f'Truncated action_results to {MAX_CONTENT_SIZE} characters')
 
-		# Build the history item
+		# Построение элемента истории
 		if model_output is None:
-			# Add history item for initial actions (step 0) or errors (step > 0)
+			# Добавление элемента истории для начальных действий (шаг 0) или ошибок (шаг > 0)
 			if step_number is not None:
 				if step_number == 0 and action_results:
-					# Step 0 with initial action results
+					# Шаг 0 с результатами начальных действий
 					history_item = HistoryItem(step_number=step_number, action_results=action_results)
 					self.state.agent_history_items.append(history_item)
 				elif step_number > 0:
-					# Error case for steps > 0
+					# Случай ошибки для шагов > 0
 					history_item = HistoryItem(step_number=step_number, error='Agent failed to output in the right format.')
 					self.state.agent_history_items.append(history_item)
 		else:
@@ -264,12 +264,12 @@ class MessageManager:
 		if not sensitive_data:
 			return ''
 
-		# Collect placeholders for sensitive data
+		# Сбор плейсхолдеров для чувствительных данных
 		placeholders: set[str] = set()
 
 		for key, value in sensitive_data.items():
 			if isinstance(value, dict):
-				# New format: {domain: {key: value}}
+				# Новый формат: {domain: {key: value}}
 				if current_page_url and match_url_with_domain_pattern(current_page_url, key, True):
 					placeholders.update(value.keys())
 			else:
@@ -295,8 +295,8 @@ class MessageManager:
 		use_vision: bool | Literal['auto'] = True,
 		page_filtered_actions: str | None = None,
 		sensitive_data=None,
-		available_file_paths: list[str] | None = None,  # Always pass current available_file_paths
-		unavailable_skills_info: str | None = None,  # Information about skills that cannot be used yet
+		available_file_paths: list[str] | None = None,  # Всегда передавать текущие доступные пути к файлам
+		unavailable_skills_info: str | None = None,  # Информация о навыках, которые пока нельзя использовать
 		email_subagent=None,  # EmailSubAgent для добавления контекста о почтовых интерфейсах
 	) -> None:
 		"""Create single state message with all content"""
@@ -345,7 +345,7 @@ class MessageManager:
 		# Use vision in the user message if screenshots are included
 		effective_use_vision = len(screenshots) > 0
 
-		# Create single state message with all content
+		# Создание одного сообщения состояния со всем содержимым
 		assert browser_state_summary
 		state_message = AgentMessagePrompt(
 			browser_state_summary=browser_state_summary,
@@ -368,10 +368,10 @@ class MessageManager:
 			email_subagent=email_subagent,
 		).get_user_message(effective_use_vision)
 
-		# Store state message text for history
+		# Сохранение текста сообщения состояния для истории
 		self.last_state_message_text = state_message.text
 
-		# Set the state message with caching enabled
+		# Установка сообщения состояния с включенным кэшированием
 		self._set_message_with_type(state_message, 'state')
 
 	def _log_history_lines(self) -> str:
@@ -421,7 +421,7 @@ class MessageManager:
 
 	def _set_message_with_type(self, message: BaseMessage, message_type: Literal['system', 'state']) -> None:
 		"""Replace a specific state message slot with a new message"""
-		# Don't filter system and state messages - they should contain placeholder tags or normal conversation
+		# Не фильтровать системные и state сообщения - они должны содержать теги плейсхолдеров или обычный разговор
 		if message_type == 'system':
 			self.state.history.system_message = message
 		elif message_type == 'state':
@@ -431,7 +431,7 @@ class MessageManager:
 
 	def _add_context_message(self, message: BaseMessage) -> None:
 		"""Add a contextual message specific to this step (e.g., validation errors, retry instructions, timeout warnings)"""
-		# Don't filter context messages - they should contain normal conversation or error messages
+		# Не фильтровать контекстные сообщения - они должны содержать обычный разговор или сообщения об ошибках
 		self.state.history.context_messages.append(message)
 
 	@time_execution_sync('--filter_sensitive_data')

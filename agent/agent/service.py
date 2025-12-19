@@ -222,11 +222,11 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		if available_file_paths is None:
 			available_file_paths = []
 
-		# Set timeout based on model name if not explicitly provided
+		# Установка таймаута на основе имени модели если не указан явно
 		if llm_timeout is None:
 
 			def _get_model_timeout(llm_model: BaseChatModel) -> int:
-				"""Determine timeout based on model name"""
+				"""Определение таймаута на основе имени модели"""
 				model_name = getattr(llm_model, 'model', '').lower()
 				if 'gemini' in model_name:
 					if '3-pro' in model_name:
@@ -237,7 +237,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				elif 'o3' in model_name or 'claude' in model_name or 'sonnet' in model_name or 'deepseek' in model_name:
 					return 90
 				else:
-					return 60  # Default timeout
+					return 60  # Таймаут по умолчанию
 
 			llm_timeout = _get_model_timeout(llm)
 
@@ -252,7 +252,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			base_profile = base_profile.model_copy(update={'demo_mode': demo_mode})
 		browser_profile = base_profile
 
-		# Handle browser vs browser_session parameter (browser takes precedence)
+		# Обработка параметров browser vs browser_session (browser имеет приоритет)
 		if browser and browser_session:
 			raise ValueError('Cannot specify both "browser" and "browser_session" parameters. Use "browser" for the cleaner API.')
 		browser_session = browser or browser_session
@@ -271,16 +271,16 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				'Demo mode is enabled but the browser is headless=True; set headless=False to view the in-browser panel.'
 			)
 
-		# Initialize available file paths as direct attribute
+		# Инициализация доступных путей к файлам как прямого атрибута
 		self.available_file_paths = available_file_paths
 
-		# Set up tools first (needed to detect output_model_schema)
+		# Настройка инструментов сначала (нужно для определения output_model_schema)
 		if tools is not None:
 			self.tools = tools
 		elif controller is not None:
 			self.tools = controller
 		else:
-			# Exclude screenshot tool when use_vision is not auto
+			# Исключить инструмент screenshot когда use_vision не auto
 			exclude_actions = ['screenshot'] if use_vision != 'auto' else []
 			self.tools = Tools(
 				exclude_actions=exclude_actions,
@@ -288,34 +288,34 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				user_input_callback=user_input_callback
 			)
 
-		# Enforce screenshot exclusion when use_vision != 'auto', even if user passed custom tools
+		# Принудительное исключение screenshot когда use_vision != 'auto', даже если пользователь передал кастомные инструменты
 		if use_vision != 'auto':
 			self.tools.exclude_action('screenshot')
 
-		# Structured output - use explicit param or detect from tools
+		# Структурированный вывод - использовать явный параметр или определить из инструментов
 		tools_output_model = self.tools.get_output_model()
 		if output_model_schema is not None and tools_output_model is not None:
-			# Both provided - warn if they differ
+			# Оба предоставлены - предупреждение если они различаются
 			if output_model_schema is not tools_output_model:
 				logger.warning(
-					f'output_model_schema ({output_model_schema.__name__}) differs from Tools output_model '
-					f'({tools_output_model.__name__}). Using Agent output_model_schema.'
+					f'output_model_schema ({output_model_schema.__name__}) отличается от Tools output_model '
+					f'({tools_output_model.__name__}). Используется Agent output_model_schema.'
 				)
 		elif output_model_schema is None and tools_output_model is not None:
-			# Only tools has it - use that (cast is safe: both are BaseModel subclasses)
+			# Только tools имеет его - использовать его (приведение безопасно: оба являются подклассами BaseModel)
 			output_model_schema = cast(type[AgentStructuredOutput], tools_output_model)
 		self.output_model_schema = output_model_schema
 		if self.output_model_schema is not None:
 			self.tools.use_structured_output_action(self.output_model_schema)
 
-		# Core components - task enhancement now has access to output_model_schema from tools
+		# Основные компоненты - улучшение задачи теперь имеет доступ к output_model_schema из инструментов
 		self.task = self._enhance_task_with_schema(task, output_model_schema)
 		self.llm = llm
 
-		# Fallback LLM configuration
+		# Конфигурация резервного LLM
 		self._fallback_llm: BaseChatModel | None = fallback_llm
 		self._using_fallback_llm: bool = False
-		self._original_llm: BaseChatModel = llm  # Store original for reference
+		self._original_llm: BaseChatModel = llm  # Сохранение оригинала для справки
 		self.directly_open_url = directly_open_url
 		self.include_recent_events = include_recent_events
 		self._url_shortening_limit = _url_shortening_limit
@@ -353,13 +353,13 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		self.token_cost_service.register_llm(llm)
 		self.token_cost_service.register_llm(page_extraction_llm)
 
-		# Initialize state
+		# Инициализация состояния
 		self.state = injected_agent_state or AgentState()
 
-		# Initialize history
+		# Инициализация истории
 		self.history = AgentHistoryList(history=[], usage=None)
 
-		# Initialize agent directory
+		# Инициализация директории агента
 		import time
 
 		timestamp = int(time.time())
@@ -370,10 +370,10 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		self._set_file_system(file_system_path)
 		self._set_screenshot_service()
 		
-		# Initialize sub-agents for specialized tasks
+		# Инициализация sub-агентов для специализированных задач
 		self.email_subagent = EmailSubAgent()
 
-		# Action setup
+		# Настройка действий
 		self._setup_action_models()
 		self._set_agent_version_and_source(source)
 
@@ -389,7 +389,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		self.initial_url = initial_url
 
 		self.initial_actions = self._convert_initial_actions(initial_actions) if initial_actions else None
-		# Verify we can connect to the model
+		# Проверка возможности подключения к модели
 		self._verify_and_setup_llm()
 
 		# Обработка попыток использовать use_vision=True с моделями DeepSeek
@@ -411,13 +411,13 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		# Сохраняем llm_screenshot_size в browser_session, чтобы инструменты могли к нему обращаться
 		self.browser_session.llm_screenshot_size = llm_screenshot_size
 
-		# Check if LLM is ChatAnthropic instance
+		# Проверка является ли LLM экземпляром ChatAnthropic
 		from agent.llm.anthropic.chat import ChatAnthropic
 
 		is_anthropic = isinstance(self.llm, ChatAnthropic)
 
-		# Initialize message manager with state
-		# Initial system prompt with all actions - will be updated during each step
+		# Инициализация менеджера сообщений с состоянием
+		# Начальный системный промпт со всеми действиями - будет обновляться на каждом шаге
 		self._message_manager = MessageManager(
 			task=self.task,
 			system_message=SystemPrompt(
@@ -431,7 +431,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			file_system=self.file_system,
 			state=self.state.message_manager_state,
 			use_thinking=self.settings.use_thinking,
-			# Settings that were previously in MessageManagerSettings
+			# Настройки, которые ранее были в MessageManagerSettings
 			include_attributes=self.settings.include_attributes,
 			sensitive_data=sensitive_data,
 			max_history_items=self.settings.max_history_items,
@@ -443,10 +443,10 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		)
 
 		if self.sensitive_data:
-			# Check if sensitive_data has domain-specific credentials
+			# Проверка наличия доменно-специфичных учетных данных в sensitive_data
 			has_domain_specific_credentials = any(isinstance(v, dict) for v in self.sensitive_data.values())
 
-			# If no allowed_domains are configured, show a security warning
+			# Если не настроены allowed_domains, показать предупреждение безопасности
 			if not self.browser_profile.allowed_domains:
 				self.logger.warning(
 					'⚠️ Agent(sensitive_data=••••••••) was provided but Browser(allowed_domains=[...]) is not locked down! ⚠️\n'
@@ -454,27 +454,27 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 					'   \n'
 				)
 
-			# If we're using domain-specific credentials, validate domain patterns
+			# Если используем доменно-специфичные учетные данные, валидируем паттерны доменов
 			elif has_domain_specific_credentials:
-				# For domain-specific format, ensure all domain patterns are included in allowed_domains
+				# Для доменно-специфичного формата убеждаемся что все паттерны доменов включены в allowed_domains
 				domain_patterns = [k for k, v in self.sensitive_data.items() if isinstance(v, dict)]
 
-				# Validate each domain pattern against allowed_domains
+				# Валидация каждого паттерна домена против allowed_domains
 				for domain_pattern in domain_patterns:
 					is_allowed = False
 					for allowed_domain in self.browser_profile.allowed_domains:
-						# Special cases that don't require URL matching
+						# Специальные случаи, которые не требуют сопоставления URL
 						if domain_pattern == allowed_domain or allowed_domain == '*':
 							is_allowed = True
 							break
 
-						# Need to create example URLs to compare the patterns
-						# Extract the domain parts, ignoring scheme
+						# Нужно создать примеры URL для сравнения паттернов
+						# Извлечение частей домена, игнорируя схему
 						pattern_domain = domain_pattern.split('://')[-1] if '://' in domain_pattern else domain_pattern
 						allowed_domain_part = allowed_domain.split('://')[-1] if '://' in allowed_domain else allowed_domain
 
-						# Check if pattern is covered by an allowed domain
-						# Example: "google.com" is covered by "*.google.com"
+						# Проверка покрыт ли паттерн разрешенным доменом
+						# Пример: "google.com" покрывается "*.google.com"
 						if pattern_domain == allowed_domain_part or (
 							allowed_domain_part.startswith('*.')
 							and (
@@ -491,7 +491,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 							f'   This may be a security risk as credentials could be used on unintended domains.'
 						)
 
-		# Callbacks
+		# Колбэки
 		self.register_new_step_callback = register_new_step_callback
 		self.register_done_callback = register_done_callback
 		self.register_should_stop_callback = register_should_stop_callback
@@ -504,14 +504,14 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self.settings.save_conversation_path = Path(self.settings.save_conversation_path).expanduser().resolve()
 			self.logger.info(f'💬 Сохраняю разговор в {_log_pretty_path(self.settings.save_conversation_path)}')
 
-		# Initialize download tracking
+		# Инициализация отслеживания загрузок
 		assert self.browser_session is not None, 'BrowserSession is not set up'
 		self.has_downloads_path = self.browser_session.browser_profile.downloads_path is not None
 		if self.has_downloads_path:
 			self._last_known_downloads: list[str] = []
 			self.logger.debug('📁 Инициализирован отслеживание загрузок для агента')
 
-		# Event-based pause control (kept out of AgentState for serialization)
+		# Управление паузой на основе событий (вынесено из AgentState для сериализации)
 		self._external_pause_event = asyncio.Event()
 		self._external_pause_event.set()
 
@@ -536,7 +536,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	@property
 	def logger(self) -> logging.Logger:
 		"""Get instance-specific logger with task ID in the name"""
-		# logger may be called in __init__ so we don't assume self.* attributes have been initialized
+		# logger может быть вызван в __init__, поэтому не предполагаем что атрибуты self.* инициализированы
 		_task_id = task_id[-4:] if (task_id := getattr(self, 'task_id', None)) else '----'
 		_browser_session_id = browser_session.id[-4:] if (browser_session := getattr(self, 'browser_session', None)) else '----'
 		_current_target_id = (
@@ -620,10 +620,10 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 	def _set_agent_version_and_source(self, source_override: str | None = None) -> None:
 		"""Получить версию и источник сборки агента из pyproject.toml (упрощённо)."""
-		# Use the helper function for version detection
+		# Использование вспомогательной функции для определения версии
 		version = get_agent_version()
 
-		# Determine source
+		# Определение источника
 		try:
 			package_root = Path(__file__).parent.parent.parent
 			repo_files = ['.git', 'README.md', 'docs', 'examples']
@@ -642,9 +642,9 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 	def _setup_action_models(self) -> None:
 		"""Setup dynamic action models from tools registry"""
-		# Initially only include actions with no filters
+		# Изначально включать только действия без фильтров
 		self.ActionModel = self.tools.registry.create_action_model()
-		# Create output model with the dynamic actions
+		# Создание выходной модели с динамическими действиями
 		if self.settings.flash_mode:
 			self.AgentOutput = AgentOutput.type_with_custom_actions_flash_mode(self.ActionModel)
 		elif self.settings.use_thinking:
@@ -652,7 +652,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		else:
 			self.AgentOutput = AgentOutput.type_with_custom_actions_no_thinking(self.ActionModel)
 
-		# used to force the done action when max_steps is reached
+		# используется для принудительного выполнения действия done когда достигнут max_steps
 		self.DoneActionModel = self.tools.registry.create_action_model(include_actions=['done'])
 		if self.settings.flash_mode:
 			self.DoneAgentOutput = AgentOutput.type_with_custom_actions_flash_mode(self.DoneActionModel)
@@ -671,13 +671,13 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 	def add_new_task(self, new_task: str) -> None:
 		"""Add a new task to the agent, keeping the same task_id as tasks are continuous"""
-		# Simply delegate to message manager - no need for new task_id or events
-		# The task continues with new instructions, it doesn't end and start a new one
+		# Просто делегировать менеджеру сообщений - не нужен новый task_id или события
+		# Задача продолжается с новыми инструкциями, она не заканчивается и не начинается новая
 		self.task = new_task
 		self._message_manager.add_new_task(new_task)
-		# Mark as follow-up task and recreate eventbus (gets shut down after each run)
+		# Пометить как follow-up задачу и пересоздать eventbus (закрывается после каждого запуска)
 		self.state.follow_up_task = True
-		# Reset control flags so agent can continue
+		# Сброс флагов управления чтобы агент мог продолжить
 		self.state.stopped = False
 		self.state.paused = False
 		agent_id_suffix = str(self.id)[-4:].replace('-', '_')
@@ -688,7 +688,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	async def _check_stop_or_pause(self) -> None:
 		"""Check if the agent should stop or pause, and handle accordingly."""
 
-		# Check new should_stop_callback - sets stopped state cleanly without raising
+		# Проверка нового should_stop_callback - устанавливает остановленное состояние чисто без исключений
 		if self.register_should_stop_callback:
 			if await self.register_should_stop_callback():
 				self.logger.info('Внешний callback запросил остановку')
@@ -830,7 +830,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			use_vision=self.settings.use_vision,
 			page_filtered_actions=page_filtered_actions if page_filtered_actions else None,
 			sensitive_data=self.sensitive_data,
-			available_file_paths=self.available_file_paths,  # Always pass current available_file_paths
+			available_file_paths=self.available_file_paths,  # Всегда передавать текущие доступные пути к файлам
 			unavailable_skills_info=unavailable_skills_info,
 			email_subagent=self.email_subagent,  # Передаем субагента для добавления контекста о почтовых интерфейсах
 		)
@@ -887,10 +887,10 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		"""Handle post-action processing like download tracking and result logging"""
 		assert self.browser_session is not None, 'BrowserSession is not set up'
 
-		# Check for new downloads after executing actions
+		# Проверка новых загрузок после выполнения действий
 		await self._check_and_update_downloads('after executing actions')
 
-		# check for action errors  and len more than 1
+		# проверка ошибок действий и len больше 1
 		if self.state.last_result and len(self.state.last_result) == 1 and self.state.last_result[-1].error:
 			self.state.consecutive_failures += 1
 			self.logger.debug(f'🔄 Шаг {self.state.n_steps}: Последовательные неудачи: {self.state.consecutive_failures}')
@@ -917,21 +917,21 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	async def _handle_step_error(self, error: Exception) -> None:
 		"""Handle all types of errors that can occur during a step"""
 
-		# Handle InterruptedError specially
+		# Специальная обработка InterruptedError
 		if isinstance(error, InterruptedError):
 			error_msg = 'The agent was interrupted mid-step' + (f' - {str(error)}' if str(error) else '')
 			# NOTE: This is not an error, it's a normal part of the execution when the user interrupts the agent
 			self.logger.warning(f'{error_msg}')
 			return
 
-		# Handle all other exceptions
+		# Обработка всех остальных исключений
 		include_trace = self.logger.isEnabledFor(logging.DEBUG)
 		error_msg = AgentError.format_error(error, include_trace=include_trace)
 		max_total_failures = self.settings.max_failures + int(self.settings.final_response_after_failure)
 		prefix = f'❌ Result failed {self.state.consecutive_failures + 1}/{max_total_failures} times: '
 		self.state.consecutive_failures += 1
 
-		# Use WARNING for partial failures, ERROR only when max failures reached
+		# Использование WARNING для частичных неудач, ERROR только когда достигнут максимум неудач
 		is_final_failure = self.state.consecutive_failures >= max_total_failures
 		log_level = logging.ERROR if is_final_failure else logging.WARNING
 
@@ -972,7 +972,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				step_interval=step_interval,
 			)
 
-			# Use _make_history_item like main branch
+			# Использование _make_history_item как в main ветке
 			await self._make_history_item(
 				self.state.last_model_output,
 				browser_state_summary,
@@ -981,33 +981,33 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				state_message=self._message_manager.last_state_message_text,
 			)
 
-		# Log step completion summary
+		# Логирование сводки завершения шага
 		summary_message = self._log_step_completion_summary(self.step_start_time, self.state.last_result)
 		if summary_message:
 			await self._demo_mode_log(summary_message, 'info', {'step': self.state.n_steps})
 
-		# Save file system state after step completion
+		# Сохранение состояния файловой системы после завершения шага
 		self.save_file_system_state()
 
-		# Emit both step created and executed events
+		# Эмиссия событий создания и выполнения шага
 		if browser_state_summary and self.state.last_model_output:
-			# Extract key step data for the event
+			# Извлечение ключевых данных шага для события
 			actions_data = []
 			if self.state.last_model_output.action:
 				for action in self.state.last_model_output.action:
 					action_dict = action.model_dump() if hasattr(action, 'model_dump') else {}
 					actions_data.append(action_dict)
 
-			# Cloud events removed in simplified version
-			# CreateAgentStepEvent was removed
+			# Cloud события удалены в упрощенной версии
+			# CreateAgentStepEvent был удален
 
-		# Increment step counter after step is fully completed
+		# Увеличение счетчика шагов после полного завершения шага
 		self.state.n_steps += 1
 
 	async def _force_done_after_last_step(self, step_info: AgentStepInfo | None = None) -> None:
 		"""Handle special processing for the last step"""
 		if step_info and step_info.is_last_step():
-			# Add last step warning if needed
+			# Добавление предупреждения о последнем шаге при необходимости
 			msg = 'You reached max_steps - this is your last step. Your only tool available is the "done" tool. No other tool is available. All other tools which you see in history or examples are not available.'
 			msg += '\nIf the task is not yet fully finished as requested by the user, set success in "done" to false! E.g. if not all steps are fully completed. Else success to true.'
 			msg += '\nInclude everything you found out for the ultimate task in the done text.'
@@ -1016,8 +1016,8 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self.AgentOutput = self.DoneAgentOutput
 
 	async def _force_done_after_failure(self) -> None:
-		"""Force done after failure"""
-		# Create recovery message
+		"""Принудительное завершение после неудачи"""
+		# Создание сообщения восстановления
 		if self.state.consecutive_failures >= self.settings.max_failures and self.settings.final_response_after_failure:
 			msg = f'You failed {self.settings.max_failures} times. Therefore we terminate the agent.'
 			msg += '\nYour only tool available is the "done" tool. No other tool is available. All other tools which you see in history or examples are not available.'

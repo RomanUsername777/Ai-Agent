@@ -12,7 +12,7 @@ def main():
         epilog="""
 Примеры использования:
   python main_agent.py
-  python main_agent.py --session yandex_mail
+  python main_agent.py --session mail_session
   python main_agent.py --headless
   python main_agent.py --session hh --headless
         """

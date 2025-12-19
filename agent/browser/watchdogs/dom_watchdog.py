@@ -752,7 +752,7 @@ class DOMWatchdog(BaseWatchdog):
 	async def _get_page_info(self) -> 'PageInfo':
 		"""Get comprehensive page information using a single CDP call.
 
-		TODO: should we make this an event as well?
+		# Примечание: можно сделать это событием
 
 		Returns:
 			PageInfo with all viewport, page dimensions, and scroll information

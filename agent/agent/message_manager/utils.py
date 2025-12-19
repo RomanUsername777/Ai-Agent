@@ -47,5 +47,5 @@ async def _format_conversation(messages: list[BaseMessage], response: Any) -> st
 	return '\n'.join(lines)
 
 
-# Note: _write_messages_to_file and _write_response_to_file have been merged into _format_conversation
+# Примечание: _write_messages_to_file и _write_response_to_file объединены в _format_conversation
 # This is more efficient for async operations and reduces file I/O

@@ -44,7 +44,7 @@ def _get_timeout(env_var: str, default: float) -> float | None:
 
 
 # ============================================================================
-# Agent/Tools -> BrowserSession Events (High-level browser actions)
+# События Agent/Tools -> BrowserSession (высокоуровневые действия браузера)
 # ============================================================================
 
 
@@ -83,7 +83,7 @@ class ElementSelectedEvent(BaseEvent[T_EventResultType]):
 		)
 
 
-# TODO: add page handle to events
+# Примечание: можно добавить page handle к событиям
 # class PageHandle(share a base with browser.session.CDPSession?):
 # 	url: str
 # 	target_id: TargetID
@@ -116,7 +116,7 @@ class NavigateToUrlEvent(BaseEvent[None]):
 	new_tab: bool = Field(
 		default=False, description='Set True to leave the current tab alone and open a new tab in the foreground for the new URL'
 	)
-	# existing_tab: PageHandle | None = None  # TODO
+	# existing_tab: PageHandle | None = None  # Примечание: требует реализации
 
 	# time limits enforced by bubus, not exposed to LLM:
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_NavigateToUrlEvent', 15.0))  # seconds
@@ -127,7 +127,7 @@ class ClickElementEvent(ElementSelectedEvent[dict[str, Any] | None]):
 
 	node: 'EnhancedDOMTreeNode'
 	button: Literal['left', 'right', 'middle'] = 'left'
-	# click_count: int = 1           # TODO
+	# click_count: int = 1  # Примечание: требует реализации
 	# expect_download: bool = False  # moved to downloads_watchdog.py
 
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_ClickElementEvent', 15.0))  # seconds
@@ -202,7 +202,7 @@ class BrowserStateRequestEvent(BaseEvent[BrowserStateSummary]):
 
 
 # class WaitForConditionEvent(BaseEvent):
-# 	"""Wait for a condition."""
+# 	"""Ожидание условия."""
 
 # 	condition: Literal['navigation', 'selector', 'timeout', 'load_state']
 # 	timeout: float = 30000
@@ -309,14 +309,14 @@ class BrowserStopEvent(BaseEvent):
 class BrowserLaunchResult(BaseModel):
 	"""Result of launching a browser."""
 
-	# TODO: add browser executable_path, pid, version, latency, user_data_dir, X11 $DISPLAY, host IP address, etc.
+	# Примечание: можно добавить browser executable_path, pid, version, latency, user_data_dir, X11 $DISPLAY, host IP address и т.д.
 	cdp_url: str
 
 
 class BrowserLaunchEvent(BaseEvent[BrowserLaunchResult]):
 	"""Launch a local browser process."""
 
-	# TODO: add executable_path, proxy settings, preferences, extra launch args, etc.
+	# Примечание: можно добавить executable_path, proxy settings, preferences, extra launch args и т.д.
 
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_BrowserLaunchEvent', 30.0))  # seconds
 
@@ -327,7 +327,7 @@ class BrowserKillEvent(BaseEvent):
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_BrowserKillEvent', 30.0))  # seconds
 
 
-# TODO: replace all Runtime.evaluate() calls with this event
+# Примечание: можно заменить все вызовы Runtime.evaluate() этим событием
 # class ExecuteJavaScriptEvent(BaseEvent):
 # 	"""Execute JavaScript in page context."""
 
@@ -337,7 +337,7 @@ class BrowserKillEvent(BaseEvent):
 
 # 	event_timeout: float | None = 60.0  # seconds
 
-# TODO: add this and use the old BrowserProfile.viewport options to set it
+# Примечание: можно добавить это и использовать старые опции BrowserProfile.viewport для установки
 # class SetViewportEvent(BaseEvent):
 # 	"""Set the viewport size."""
 
@@ -348,7 +348,7 @@ class BrowserKillEvent(BaseEvent):
 # 	event_timeout: float | None = 15.0  # seconds
 
 
-# Moved to storage state
+# Перемещено в storage state
 # class SetCookiesEvent(BaseEvent):
 # 	"""Set browser cookies."""
 
@@ -368,7 +368,7 @@ class BrowserKillEvent(BaseEvent):
 
 
 # ============================================================================
-# DOM-related Events
+# События, связанные с DOM
 # ============================================================================
 
 
@@ -402,14 +402,14 @@ class TabClosedEvent(BaseEvent):
 
 	target_id: TargetID
 
-	# TODO:
+	# Примечание:
 	# new_focus_target_id: int | None = None
 	# new_focus_url: str | None = None
 
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_TabClosedEvent', 10.0))  # seconds
 
 
-# TODO: emit this when DOM changes significantly, inner frame navigates, form submits, history.pushState(), etc.
+# Примечание: можно эмитить это событие когда DOM значительно изменяется, внутренний фрейм навигирует, форма отправляется, history.pushState() и т.д.
 # class TabUpdatedEvent(BaseEvent):
 # 	"""Tab information updated (URL changed, etc.)."""
 
@@ -457,7 +457,7 @@ class NavigationCompleteEvent(BaseEvent):
 
 
 # ============================================================================
-# Error Events
+# События ошибок
 # ============================================================================
 
 
@@ -472,7 +472,7 @@ class BrowserErrorEvent(BaseEvent):
 
 
 # ============================================================================
-# Storage State Events
+# События состояния хранилища
 # ============================================================================
 
 
@@ -502,7 +502,7 @@ class LoadStorageStateEvent(BaseEvent):
 	event_timeout: float | None = Field(default_factory=lambda: _get_timeout('TIMEOUT_LoadStorageStateEvent', 45.0))  # seconds
 
 
-# TODO: refactor this to:
+# Примечание: можно рефакторить это следующим образом:
 # - on_BrowserConnectedEvent() -> dispatch(LoadStorageStateEvent()) -> _copy_storage_state_from_json_to_browser(json_file, new_cdp_session) + return storage_state from handler
 # - on_BrowserStopEvent() -> dispatch(SaveStorageStateEvent()) -> _copy_storage_state_from_browser_to_json(new_cdp_session, json_file)
 # and get rid of StorageStateSavedEvent and StorageStateLoadedEvent, have the original events + provide handler return values for any results
@@ -517,7 +517,7 @@ class StorageStateLoadedEvent(BaseEvent):
 
 
 # ============================================================================
-# File Download Events
+# События загрузки файлов
 # ============================================================================
 
 
@@ -550,12 +550,12 @@ class DialogOpenedEvent(BaseEvent):
 	message: str
 	url: str
 	frame_id: str | None = None  # Can be None when frameId is not provided by CDP
-	# target_id: TargetID   # TODO: add this to avoid needing target_id_from_frame() later
+	# target_id: TargetID  # Примечание: можно добавить это, чтобы избежать необходимости target_id_from_frame() позже
 
 
-# Note: Model rebuilding for forward references is handled in the importing modules
-# Events with 'EnhancedDOMTreeNode' forward references (ClickElementEvent, TypeTextEvent,
-# ScrollEvent, UploadFileEvent) need model_rebuild() called after imports are complete
+# Примечание: перестройка моделей для forward references обрабатывается в импортирующих модулях
+# События с forward references на 'EnhancedDOMTreeNode' (ClickElementEvent, TypeTextEvent,
+# ScrollEvent, UploadFileEvent) требуют вызова model_rebuild() после завершения импортов
 
 
 def _check_event_names_dont_overlap():

@@ -28,7 +28,7 @@ from agent.utils import create_task_with_error_handling
 if TYPE_CHECKING:
 	from agent.browser.session import BrowserSession
 
-# Note: iframe limits are now configurable via BrowserProfile.max_iframes and BrowserProfile.max_iframe_depth
+# Примечание: ограничения iframe теперь настраиваются через BrowserProfile.max_iframes и BrowserProfile.max_iframe_depth
 
 
 class DomService:

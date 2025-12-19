@@ -76,7 +76,7 @@ class Mouse:
 
 	async def move(self, x: int, y: int, steps: int = 1) -> None:
 		"""Move mouse to the specified coordinates."""
-		# TODO: Implement smooth movement with multiple steps if needed
+		# Примечание: можно реализовать плавное движение с несколькими шагами при необходимости
 		_ = steps  # Acknowledge parameter for future use
 
 		params: 'DispatchMouseEventParameters' = {'type': 'mouseMoved', 'x': x, 'y': y}

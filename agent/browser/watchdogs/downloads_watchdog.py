@@ -864,7 +864,7 @@ class DownloadsWatchdog(BaseWatchdog):
 		# Debug: Check if download is already being handled elsewhere
 		failure = (
 			await download.failure()
-		)  # TODO: it always fails for some reason, figure out why connect_over_cdp makes accept_downloads not work
+		)  # Примечание: требуется выяснить, почему connect_over_cdp делает accept_downloads нерабочим
 		self.logger.warning(f'[DownloadsWatchdog] ❌ Download state - canceled: {failure}, url: {download.url}')
 		# logger.info(f'[DownloadsWatchdog] Active downloads count: {len(self._active_downloads)}')
 

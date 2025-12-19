@@ -443,7 +443,7 @@ class BrowserNewContextArgs(BrowserContextArgs):
 
 	# storage_state is not supported in launch_persistent_context()
 	storage_state: str | Path | dict[str, Any] | None = None
-	# TODO: use StorageState type instead of dict[str, Any]
+	# Примечание: можно использовать тип StorageState вместо dict[str, Any]
 
 	# to apply this to existing contexts (incl cookies, localStorage, IndexedDB)
 
@@ -647,7 +647,7 @@ class BrowserProfile(BrowserConnectArgs, BrowserLaunchPersistentContextArgs, Bro
 	)
 	record_video_framerate: int = Field(default=30, description='The framerate to use for the video recording.')
 
-	# TODO: finish implementing extension support in extensions.py
+	# Примечание: поддержка расширений реализована частично
 	# extension_ids_to_preinstall: list[str] = Field(
 	# 	default_factory=list, description='List of Chrome extension IDs to preinstall.'
 	# )

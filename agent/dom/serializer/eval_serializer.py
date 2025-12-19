@@ -12,7 +12,7 @@ from agent.dom.views import (
 logger = logging.getLogger(__name__)
 
 # Critical attributes for query writing and form interaction
-# NOTE: Removed 'id' and 'class' to force more robust structural selectors
+# Примечание: удалены 'id' и 'class' для принудительного использования более надежных структурных селекторов
 EVAL_KEY_ATTRIBUTES = [
 	'id',  # Removed - can have special chars, forces structural selectors
 	'class',  # Removed - can have special chars like +, forces structural selectors

@@ -242,10 +242,7 @@ class DOMRect:
 
 @dataclass(slots=True)
 class EnhancedAXProperty:
-	"""we don't need `sources` and `related_nodes` for now (not sure how to use them)
-
-	TODO: there is probably some way to determine whether it has a value or related nodes or not, but for now it's kinda fine idk
-	"""
+	"""we don't need `sources` and `related_nodes` for now (not sure how to use them)"""
 
 	name: AXPropertyName
 	value: str | bool | None
@@ -490,7 +487,6 @@ class EnhancedDOMTreeNode:
 				return
 
 			# Skip this branch if we hit a highlighted element (except for the current node)
-			# TODO: think whether if makese sense to add text until the next clickable element or everything from children
 			# if node.node_type == NodeType.ELEMENT_NODE
 			# if isinstance(node, DOMElementNode) and node != self and node.highlight_index is not None:
 			# 	return
@@ -755,8 +751,6 @@ class EnhancedDOMTreeNode:
 	def __hash__(self) -> int:
 		"""
 		Hash the element based on its parent branch path and attributes.
-
-		TODO: migrate this to use only backendNodeId + current SessionId
 		"""
 
 		# Get parent branch path
@@ -851,9 +845,7 @@ class SerializedDOMState:
 class DOMInteractedElement:
 	"""
 	DOMInteractedElement is a class that represents a DOM element that has been interacted with.
-	It is used to store the DOM element that has been interacted with and to store the DOM element that has been interacted with.
-
-	TODO: this is a bit of a hack, we should probably have a better way to do this
+	It is used to store the DOM element that has been interacted with.
 	"""
 
 	node_id: int
